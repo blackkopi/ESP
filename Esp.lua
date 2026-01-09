@@ -1,4 +1,4 @@
--- [[ KOPI'S ESP - FINAL THICKNESS UPDATE (PART 1/2) ]]
+-- [[ KOPI'S ESP - FINAL COLOR UPDATE (PART 1/2) ]]
 -- Features: Clamped Dragging, Draggable Pill, Smart Inputs, Colored Text
 
 local Players = game:GetService("Players")
@@ -259,8 +259,8 @@ TargInput.FocusLost:Connect(function(enter)
 	if enter and TargInput.Text ~= "" then table.insert(RainbowTargets, TargInput.Text:lower()); TargInput.Text = ""; SoundManager.Play("Open"); RefreshTargets() end
 end)
 ClearBtn.MouseButton1Click:Connect(function() table.clear(RainbowTargets); SoundManager.Play("Click"); RefreshTargets() end)
--- [[ KOPI'S ESP - FINAL THICKNESS UPDATE (PART 2/2) ]]
--- Render Logic (Thicker Skeleton)
+-- [[ KOPI'S ESP - FINAL COLOR UPDATE (PART 2/2) ]]
+-- Render Logic (Fixed Text Colors)
 
 local ESPStore = {}
 local ChamStore = {} 
@@ -321,12 +321,10 @@ RunService.RenderStepped:Connect(function()
 						Info = D("Text", {Size=11, Center=true, Outline=true, Font=2}),
 						BarOutline = D("Line", {Thickness=4, Color=Color3.new(0,0,0)}),
 						Bar = D("Line", {Thickness=2}),
-						-- INCREASED THICKNESS HERE (1.5 -> 3)
-						Head = D("Circle", {Thickness=3, NumSides=20, Radius=0, Filled=false}),
+						Head = D("Circle", {Thickness=1.5, NumSides=20, Radius=0, Filled=false}),
 						Skeleton = {}
 					}
-					-- INCREASED THICKNESS HERE (2 -> 4)
-					for i=1, 15 do table.insert(ESPStore[p].Skeleton, D("Line", {Thickness=4, Color=Color3.new(1,1,1)})) end
+					for i=1, 15 do table.insert(ESPStore[p].Skeleton, D("Line", {Thickness=2, Color=Color3.new(1,1,1)})) end
 				end
 				
 				local esp = ESPStore[p]
@@ -381,6 +379,7 @@ RunService.RenderStepped:Connect(function()
 						if ESP_SETTINGS.HealthBar then txt = txt.."["..math.floor(hum.Health).."]" end
 						esp.Info.Text = txt
 						esp.Info.Position = Vector2.new(pos.X, pos.Y + h/2 + 2)
+						-- CHANGE: Now uses 'col' (Team Color/Rainbow) instead of white
 						esp.Info.Color = col 
 					end
 					
