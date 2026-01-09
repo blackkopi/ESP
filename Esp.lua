@@ -1,5 +1,5 @@
--- [[ KOPI'S ESP - PREMIUM FIXED (PART 1/2) ]]
--- Build: Mobile Pro V3 | UI, Sounds & Fixes
+-- [[ KOPI'S ESP - FINAL BUILD (PART 1/2) ]]
+-- Features: Clamped Dragging, Draggable Pill, Smart Inputs
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -19,7 +19,7 @@ getgenv().ESP_SETTINGS = {
 	Chams = false,
 	Names = true,
 	Distance = true,
-	HealthBar = true, -- Controls Bar AND Text
+	HealthBar = true,
 	HideTeam = false
 }
 getgenv().RainbowTargets = {}
@@ -83,25 +83,74 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 16)
 local UIStroke = Instance.new("UIStroke", MainFrame)
 UIStroke.Color = THEME.Stroke; UIStroke.Thickness = 1.5; UIStroke.Transparency = 0.5
 
--- [[ MINIMIZED PILL ]]
+-- [[ PILL (MINIMIZED) ]]
 local MiniFrame = Instance.new("Frame", ScreenGui)
-MiniFrame.Size = UDim2.fromOffset(120, 36)
-MiniFrame.Position = MainFrame.Position -- Start at same pos
+MiniFrame.Size = UDim2.fromOffset(130, 40)
+MiniFrame.Position = MainFrame.Position
 MiniFrame.BackgroundColor3 = THEME.Header
-MiniFrame.Visible = false -- Hidden by default
+MiniFrame.Visible = false
 MiniFrame.BorderSizePixel = 0
 Instance.new("UICorner", MiniFrame).CornerRadius = UDim.new(1, 0)
 local MiniStroke = Instance.new("UIStroke", MiniFrame)
 MiniStroke.Color = THEME.Accent; MiniStroke.Thickness = 1.5
-local MiniBtn = Instance.new("TextButton", MiniFrame)
-MiniBtn.Size = UDim2.new(1,0,1,0)
-MiniBtn.BackgroundTransparency = 1
-MiniBtn.Text = "OPEN ESP"
-MiniBtn.Font = Enum.Font.GothamBlack
-MiniBtn.TextSize = 12
-MiniBtn.TextColor3 = THEME.Accent
 
--- [[ HEADER & DRAG ]]
+local MiniLabel = Instance.new("TextLabel", MiniFrame)
+MiniLabel.Size = UDim2.new(1,0,1,0)
+MiniLabel.BackgroundTransparency = 1
+MiniLabel.Text = "OPEN ESP"
+MiniLabel.Font = Enum.Font.GothamBlack
+MiniLabel.TextSize = 13
+MiniLabel.TextColor3 = THEME.Accent
+
+-- [[ DRAGGING & CLAMPING LOGIC ]]
+local dragging, dragInput, dragStart, startPos, activeFrame
+local isMoving = false
+
+local function UpdateDrag(input)
+	if not activeFrame then return end
+	local delta = input.Position - dragStart
+	
+	-- Check for actual movement (deadzone)
+	if delta.Magnitude > 3 then isMoving = true end
+
+	-- Calculate Target Position
+	local targetX = startPos.X.Offset + delta.X
+	local targetY = startPos.Y.Offset + delta.Y
+	
+	-- CLAMPING (The Fix)
+	local vp = Camera.ViewportSize
+	local frameSize = activeFrame.AbsoluteSize
+	local clampedX = math.clamp(targetX, 0, vp.X - frameSize.X)
+	local clampedY = math.clamp(targetY, 0, vp.Y - frameSize.Y)
+	
+	local newPos = UDim2.fromOffset(clampedX, clampedY)
+	CreateTween(activeFrame, {Position = newPos}, 0.05)
+end
+
+-- Attach drag to an object (Frame or Button)
+local function MakeDraggable(trigger, frameToMove, onClick)
+	trigger.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			isMoving = false
+			dragStart = input.Position
+			startPos = frameToMove.Position
+			activeFrame = frameToMove
+			
+			local con; con = input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+					con:Disconnect()
+					SavePosition(frameToMove.Position)
+					-- Click vs Drag Check
+					if not isMoving and onClick then onClick() end
+				end
+			end)
+		end
+	end)
+end
+
+-- [[ HEADER SETUP ]]
 local Header = Instance.new("Frame", MainFrame)
 Header.Size = UDim2.new(1, 0, 0, 44)
 Header.BackgroundColor3 = THEME.Header
@@ -112,29 +161,23 @@ Title.RichText = true; Title.Font = Enum.Font.GothamBlack; Title.TextSize = 16
 Title.TextColor3 = THEME.Text; Title.Position = UDim2.new(0, 14, 0, 0); Title.Size = UDim2.new(1, -50, 1, 0)
 Title.BackgroundTransparency = 1; Title.TextXAlignment = Enum.TextXAlignment.Left
 
--- Drag Logic (Works for both Main and Mini)
-local dragging, dragInput, dragStart, startPos, activeFrame
-local function SetupDrag(frame)
-	frame.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true; dragStart = input.Position; startPos = frame.Position; activeFrame = frame
-			input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false; SavePosition(frame.Position) end end)
-		end
-	end)
-end
-SetupDrag(MainFrame)
-SetupDrag(MiniFrame)
+-- Apply Dragging
+MakeDraggable(Header, MainFrame, nil) -- Main UI Drag
+MakeDraggable(MiniFrame, MiniFrame, function() -- Pill Drag + Click Handler
+	-- This runs only if you CLICK without dragging
+	SoundManager.Play("Open")
+	MainFrame.Position = MiniFrame.Position
+	MiniFrame.Visible = false
+	MainFrame.Visible = true
+end)
+
 UserInputService.InputChanged:Connect(function(input)
-	if dragging and input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-		local delta = input.Position - dragStart
-		if activeFrame then
-			local newPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-			CreateTween(activeFrame, {Position = newPos}, 0.05)
-		end
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		UpdateDrag(input)
 	end
 end)
 
--- Minimize/Maximize Logic
+-- Minimize Button
 local MinimizeBtn = Instance.new("TextButton", Header)
 MinimizeBtn.Size = UDim2.fromOffset(30, 30)
 MinimizeBtn.Position = UDim2.new(1, -38, 0.5, -15)
@@ -145,16 +188,9 @@ Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 8)
 
 MinimizeBtn.MouseButton1Click:Connect(function()
 	SoundManager.Play("Click")
-	MiniFrame.Position = MainFrame.Position -- Sync pos
+	MiniFrame.Position = MainFrame.Position
 	MainFrame.Visible = false
 	MiniFrame.Visible = true
-end)
-
-MiniBtn.MouseButton1Click:Connect(function()
-	SoundManager.Play("Open")
-	MainFrame.Position = MiniFrame.Position -- Sync pos
-	MiniFrame.Visible = false
-	MainFrame.Visible = true
 end)
 
 -- [[ TABS ]]
@@ -232,7 +268,7 @@ CreateToggle("Chams", "Chams")
 CreateToggle("Tracers", "Tracers")
 CreateToggle("Names", "Names")
 CreateToggle("Distance", "Distance")
-CreateToggle("Health Bar + HP", "HealthBar") -- MERGED
+CreateToggle("Health Bar + HP", "HealthBar")
 CreateToggle("Hide Team", "HideTeam")
 
 VisLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
@@ -289,8 +325,8 @@ ClearBtn.MouseButton1Click:Connect(function()
 	SoundManager.Play("Click")
 	RefreshTargets()
 end)
--- [[ KOPI'S ESP - PREMIUM FIXED (PART 2/2) ]]
--- Build: Mobile Pro V3 | Render Logic
+-- [[ KOPI'S ESP - FINAL BUILD (PART 2/2) ]]
+-- Render Logic
 
 local ESPStore = {}
 local ChamStore = {} 
@@ -361,7 +397,6 @@ RunService.RenderStepped:Connect(function()
 				local col = isRainbowTarget(p.Name) and GetRainbow() or p.TeamColor.Color
 				local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
 				
-				-- CHAMS
 				if ESP_SETTINGS.Chams then
 					if not ChamStore[p] or ChamStore[p].Parent ~= p.Character then
 						if ChamStore[p] then ChamStore[p]:Destroy() end
@@ -379,7 +414,6 @@ RunService.RenderStepped:Connect(function()
 					local size = math.clamp(2000/pos.Z, 25, 300)
 					local w, h = size, size*1.5
 					
-					-- Box
 					esp.BoxOutline.Visible = ESP_SETTINGS.Box
 					esp.Box.Visible = ESP_SETTINGS.Box
 					if ESP_SETTINGS.Box then
@@ -390,7 +424,6 @@ RunService.RenderStepped:Connect(function()
 						esp.BoxOutline.Position = esp.Box.Position
 					end
 					
-					-- Tracer
 					esp.Tracer.Visible = ESP_SETTINGS.Tracers
 					if ESP_SETTINGS.Tracers then
 						esp.Tracer.From = Vector2.new(center.X, vp.Y)
@@ -398,7 +431,6 @@ RunService.RenderStepped:Connect(function()
 						esp.Tracer.Color = col
 					end
 					
-					-- Text
 					esp.Name.Visible = ESP_SETTINGS.Names
 					if ESP_SETTINGS.Names then
 						esp.Name.Text = p.Name
@@ -406,19 +438,16 @@ RunService.RenderStepped:Connect(function()
 						esp.Name.Color = col
 					end
 					
-					-- Info Text (Distance + HP Number)
 					esp.Info.Visible = (ESP_SETTINGS.Distance or ESP_SETTINGS.HealthBar)
 					if esp.Info.Visible then
 						local txt = ""
 						if ESP_SETTINGS.Distance then txt = math.floor(dist).."m " end
-						-- LINKED: HP Number appears if HealthBar is enabled
 						if ESP_SETTINGS.HealthBar then txt = txt.."["..math.floor(hum.Health).."]" end
 						esp.Info.Text = txt
 						esp.Info.Position = Vector2.new(pos.X, pos.Y + h/2 + 2)
 						esp.Info.Color = Color3.new(1,1,1)
 					end
 					
-					-- Health Bar (Visual)
 					esp.Bar.Visible = ESP_SETTINGS.HealthBar
 					esp.BarOutline.Visible = ESP_SETTINGS.HealthBar
 					if ESP_SETTINGS.HealthBar then
@@ -427,16 +456,13 @@ RunService.RenderStepped:Connect(function()
 						local barTop = pos.Y - h/2
 						local barBot = pos.Y + h/2
 						local barH = h * hp
-						
 						esp.BarOutline.From = Vector2.new(barX, barTop)
 						esp.BarOutline.To = Vector2.new(barX, barBot)
-						
 						esp.Bar.Color = Color3.fromHSV(hp * 0.3, 1, 1)
 						esp.Bar.From = Vector2.new(barX, barBot)
 						esp.Bar.To = Vector2.new(barX, barBot - barH)
 					end
 					
-					-- Skeletons + Head
 					local doSkel = ESP_SETTINGS.Skeleton
 					for _, l in ipairs(esp.Skeleton) do l.Visible = false end
 					esp.Head.Visible = false
@@ -446,10 +472,8 @@ RunService.RenderStepped:Connect(function()
 						if hObj then
 							local hp, hon = Camera:WorldToViewportPoint(hObj.Position)
 							if hon then
-								esp.Head.Visible = true
-								esp.Head.Position = Vector2.new(hp.X, hp.Y)
-								esp.Head.Radius = math.clamp(400/pos.Z, 4, 15)
-								esp.Head.Color = col
+								esp.Head.Visible = true; esp.Head.Position = Vector2.new(hp.X, hp.Y)
+								esp.Head.Radius = math.clamp(400/pos.Z, 4, 15); esp.Head.Color = col
 							end
 						end
 						local links = (hum.RigType == Enum.HumanoidRigType.R15) and R15_LINKS or R6_LINKS
@@ -482,7 +506,6 @@ RunService.RenderStepped:Connect(function()
 end)
 
 Players.PlayerRemoving:Connect(cleanup)
--- Initial Opening
 if CoreGui:FindFirstChild("KOPI_PREMIUM_UI") then
 	local mf = CoreGui.KOPI_PREMIUM_UI:FindFirstChild("Frame")
 	if mf then mf.Visible = true end
