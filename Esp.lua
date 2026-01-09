@@ -1,5 +1,5 @@
--- [[ KOPI'S ESP - FINAL BUILD (PART 1/2) ]]
--- Features: Clamped Dragging, Draggable Pill, Smart Inputs
+-- [[ KOPI'S ESP - FINAL WALLCHECK BUILD (PART 1/2) ]]
+-- Features: Clamped Dragging, Draggable Pill, Smart Inputs, Wall Check
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -20,7 +20,8 @@ getgenv().ESP_SETTINGS = {
 	Names = true,
 	Distance = true,
 	HealthBar = true,
-	HideTeam = false
+	HideTeam = false,
+	WallCheck = false -- New Toggle
 }
 getgenv().RainbowTargets = {}
 
@@ -74,7 +75,7 @@ ScreenGui.ResetOnSpawn = false
 
 -- [[ MAIN FRAME ]]
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.fromOffset(260, 360)
+MainFrame.Size = UDim2.fromOffset(260, 400) -- Increased Height for new toggle
 MainFrame.Position = LoadPosition()
 MainFrame.BackgroundColor3 = THEME.Bg
 MainFrame.BorderSizePixel = 0
@@ -109,15 +110,10 @@ local isMoving = false
 local function UpdateDrag(input)
 	if not activeFrame then return end
 	local delta = input.Position - dragStart
-	
-	-- Check for actual movement (deadzone)
 	if delta.Magnitude > 3 then isMoving = true end
 
-	-- Calculate Target Position
 	local targetX = startPos.X.Offset + delta.X
 	local targetY = startPos.Y.Offset + delta.Y
-	
-	-- CLAMPING (The Fix)
 	local vp = Camera.ViewportSize
 	local frameSize = activeFrame.AbsoluteSize
 	local clampedX = math.clamp(targetX, 0, vp.X - frameSize.X)
@@ -127,22 +123,13 @@ local function UpdateDrag(input)
 	CreateTween(activeFrame, {Position = newPos}, 0.05)
 end
 
--- Attach drag to an object (Frame or Button)
 local function MakeDraggable(trigger, frameToMove, onClick)
 	trigger.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			isMoving = false
-			dragStart = input.Position
-			startPos = frameToMove.Position
-			activeFrame = frameToMove
-			
+			dragging = true; isMoving = false; dragStart = input.Position; startPos = frameToMove.Position; activeFrame = frameToMove
 			local con; con = input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-					con:Disconnect()
-					SavePosition(frameToMove.Position)
-					-- Click vs Drag Check
+					dragging = false; con:Disconnect(); SavePosition(frameToMove.Position)
 					if not isMoving and onClick then onClick() end
 				end
 			end)
@@ -150,7 +137,7 @@ local function MakeDraggable(trigger, frameToMove, onClick)
 	end)
 end
 
--- [[ HEADER SETUP ]]
+-- [[ HEADER & TABS ]]
 local Header = Instance.new("Frame", MainFrame)
 Header.Size = UDim2.new(1, 0, 0, 44)
 Header.BackgroundColor3 = THEME.Header
@@ -161,10 +148,8 @@ Title.RichText = true; Title.Font = Enum.Font.GothamBlack; Title.TextSize = 16
 Title.TextColor3 = THEME.Text; Title.Position = UDim2.new(0, 14, 0, 0); Title.Size = UDim2.new(1, -50, 1, 0)
 Title.BackgroundTransparency = 1; Title.TextXAlignment = Enum.TextXAlignment.Left
 
--- Apply Dragging
-MakeDraggable(Header, MainFrame, nil) -- Main UI Drag
-MakeDraggable(MiniFrame, MiniFrame, function() -- Pill Drag + Click Handler
-	-- This runs only if you CLICK without dragging
+MakeDraggable(Header, MainFrame, nil)
+MakeDraggable(MiniFrame, MiniFrame, function()
 	SoundManager.Play("Open")
 	MainFrame.Position = MiniFrame.Position
 	MiniFrame.Visible = false
@@ -172,12 +157,9 @@ MakeDraggable(MiniFrame, MiniFrame, function() -- Pill Drag + Click Handler
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-		UpdateDrag(input)
-	end
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then UpdateDrag(input) end
 end)
 
--- Minimize Button
 local MinimizeBtn = Instance.new("TextButton", Header)
 MinimizeBtn.Size = UDim2.fromOffset(30, 30)
 MinimizeBtn.Position = UDim2.new(1, -38, 0.5, -15)
@@ -185,15 +167,8 @@ MinimizeBtn.Text = "—"
 MinimizeBtn.Font = Enum.Font.GothamBold; MinimizeBtn.TextSize = 18
 MinimizeBtn.TextColor3 = THEME.TextDim; MinimizeBtn.BackgroundColor3 = Color3.fromRGB(40,40,50)
 Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 8)
+MinimizeBtn.MouseButton1Click:Connect(function() SoundManager.Play("Click"); MiniFrame.Position = MainFrame.Position; MainFrame.Visible = false; MiniFrame.Visible = true end)
 
-MinimizeBtn.MouseButton1Click:Connect(function()
-	SoundManager.Play("Click")
-	MiniFrame.Position = MainFrame.Position
-	MainFrame.Visible = false
-	MiniFrame.Visible = true
-end)
-
--- [[ TABS ]]
 local TabContainer = Instance.new("Frame", MainFrame)
 TabContainer.Position = UDim2.new(0, 10, 0, 50); TabContainer.Size = UDim2.new(1, -20, 0, 34)
 TabContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
@@ -221,16 +196,9 @@ local VisLayout = Instance.new("UIListLayout", VisPage); VisLayout.Padding = UDi
 local TargPage = Instance.new("Frame", PageContainer)
 TargPage.Size = UDim2.new(1,0,1,0); TargPage.BackgroundTransparency = 1; TargPage.Visible = false
 
-CreateTabBtn("VISUALS", 0, function()
-	CreateTween(TabHighlight, {Position = UDim2.new(0, 2, 0, 2)})
-	TargPage.Visible = false; VisPage.Visible = true
-end)
-CreateTabBtn("TARGETS", 0.5, function()
-	CreateTween(TabHighlight, {Position = UDim2.new(0.5, 2, 0, 2)})
-	VisPage.Visible = false; TargPage.Visible = true
-end)
+CreateTabBtn("VISUALS", 0, function() CreateTween(TabHighlight, {Position = UDim2.new(0, 2, 0, 2)}); TargPage.Visible = false; VisPage.Visible = true end)
+CreateTabBtn("TARGETS", 0.5, function() CreateTween(TabHighlight, {Position = UDim2.new(0.5, 2, 0, 2)}); VisPage.Visible = false; TargPage.Visible = true end)
 
--- [[ VISUALS TOGGLES ]]
 local function CreateToggle(text, configKey)
 	local Btn = Instance.new("TextButton", VisPage)
 	Btn.Size = UDim2.new(1, 0, 0, 36); Btn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
@@ -239,7 +207,6 @@ local function CreateToggle(text, configKey)
 	Lbl.Text = text; Lbl.Font = Enum.Font.GothamSemibold; Lbl.TextSize = 14
 	Lbl.TextColor3 = THEME.Text; Lbl.Size = UDim2.new(0.7, 0, 1, 0); Lbl.Position = UDim2.new(0, 12, 0, 0)
 	Lbl.TextXAlignment = Enum.TextXAlignment.Left; Lbl.BackgroundTransparency = 1
-	
 	local Sw = Instance.new("Frame", Btn)
 	Sw.Size = UDim2.fromOffset(40, 20); Sw.Position = UDim2.new(1, -50, 0.5, -10)
 	Sw.BackgroundColor3 = ESP_SETTINGS[configKey] and THEME.Accent or Color3.fromRGB(50,50,60)
@@ -250,46 +217,27 @@ local function CreateToggle(text, configKey)
 	Circ.BackgroundColor3 = Color3.new(1,1,1); Instance.new("UICorner", Circ).CornerRadius = UDim.new(1, 0)
 	
 	Btn.MouseButton1Click:Connect(function()
-		ESP_SETTINGS[configKey] = not ESP_SETTINGS[configKey]
-		SoundManager.Play("Toggle")
-		if ESP_SETTINGS[configKey] then
-			CreateTween(Sw, {BackgroundColor3 = THEME.Accent})
-			CreateTween(Circ, {Position = UDim2.new(1, -18, 0.5, -8)})
-		else
-			CreateTween(Sw, {BackgroundColor3 = Color3.fromRGB(50,50,60)})
-			CreateTween(Circ, {Position = UDim2.new(0, 2, 0.5, -8)})
-		end
+		ESP_SETTINGS[configKey] = not ESP_SETTINGS[configKey]; SoundManager.Play("Toggle")
+		if ESP_SETTINGS[configKey] then CreateTween(Sw, {BackgroundColor3 = THEME.Accent}); CreateTween(Circ, {Position = UDim2.new(1, -18, 0.5, -8)})
+		else CreateTween(Sw, {BackgroundColor3 = Color3.fromRGB(50,50,60)}); CreateTween(Circ, {Position = UDim2.new(0, 2, 0.5, -8)}) end
 	end)
 end
 
-CreateToggle("ESP Boxes", "Box")
-CreateToggle("Skeleton", "Skeleton")
-CreateToggle("Chams", "Chams")
-CreateToggle("Tracers", "Tracers")
-CreateToggle("Names", "Names")
-CreateToggle("Distance", "Distance")
-CreateToggle("Health Bar + HP", "HealthBar")
+CreateToggle("ESP Boxes", "Box"); CreateToggle("Skeleton", "Skeleton"); CreateToggle("Chams", "Chams"); CreateToggle("Tracers", "Tracers")
+CreateToggle("Names", "Names"); CreateToggle("Distance", "Distance"); CreateToggle("Health Bar + HP", "HealthBar")
+CreateToggle("Wall Check (Fade)", "WallCheck") -- New Toggle
 CreateToggle("Hide Team", "HideTeam")
 
-VisLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-	VisPage.CanvasSize = UDim2.fromOffset(0, VisLayout.AbsoluteContentSize.Y + 10)
-end)
+VisLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() VisPage.CanvasSize = UDim2.fromOffset(0, VisLayout.AbsoluteContentSize.Y + 10) end)
 
--- [[ TARGETS PAGE (FIXED CLEAR ALL) ]]
 local TargInput = Instance.new("TextBox", TargPage)
 TargInput.Size = UDim2.new(1, 0, 0, 36); TargInput.BackgroundColor3 = Color3.fromRGB(25,25,30)
-TargInput.TextColor3 = Color3.new(1,1,1); TargInput.PlaceholderText = "Add Target..."
-TargInput.Font = Enum.Font.Gotham; TargInput.TextSize = 14
-Instance.new("UICorner", TargInput).CornerRadius = UDim.new(0,8)
-Instance.new("UIStroke", TargInput).Color = THEME.Stroke
-
+TargInput.TextColor3 = Color3.new(1,1,1); TargInput.PlaceholderText = "Add Target..."; TargInput.Font = Enum.Font.Gotham; TargInput.TextSize = 14
+Instance.new("UICorner", TargInput).CornerRadius = UDim.new(0,8); Instance.new("UIStroke", TargInput).Color = THEME.Stroke
 local ClearBtn = Instance.new("TextButton", TargPage)
 ClearBtn.Size = UDim2.new(1, 0, 0, 32); ClearBtn.Position = UDim2.new(0, 0, 1, -32)
-ClearBtn.BackgroundColor3 = Color3.fromRGB(40,20,20); ClearBtn.Text = "CLEAR ALL"
-ClearBtn.TextColor3 = THEME.Red; ClearBtn.Font = Enum.Font.GothamBold; ClearBtn.TextSize = 13
-Instance.new("UICorner", ClearBtn).CornerRadius = UDim.new(0, 8)
-Instance.new("UIStroke", ClearBtn).Color = THEME.Red; Instance.new("UIStroke", ClearBtn).Thickness = 1
-
+ClearBtn.BackgroundColor3 = Color3.fromRGB(40,20,20); ClearBtn.Text = "CLEAR ALL"; ClearBtn.TextColor3 = THEME.Red; ClearBtn.Font = Enum.Font.GothamBold; ClearBtn.TextSize = 13
+Instance.new("UICorner", ClearBtn).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", ClearBtn).Color = THEME.Red; Instance.new("UIStroke", ClearBtn).Thickness = 1
 local TargScroll = Instance.new("ScrollingFrame", TargPage)
 TargScroll.Position = UDim2.fromOffset(0, 42); TargScroll.Size = UDim2.new(1,0,1,-80)
 TargScroll.BackgroundTransparency = 1; TargScroll.BorderSizePixel = 0
@@ -303,30 +251,19 @@ local function RefreshTargets()
 		Instance.new("UICorner", f).CornerRadius = UDim.new(0,6)
 		local t = Instance.new("TextLabel", f)
 		t.Text = v; t.Size = UDim2.new(1,-30,1,0); t.Position = UDim2.new(0,10,0,0)
-		t.Font = Enum.Font.Gotham; t.TextColor3 = THEME.Text; t.TextXAlignment = Enum.TextXAlignment.Left
-		t.BackgroundTransparency = 1
+		t.Font = Enum.Font.Gotham; t.TextColor3 = THEME.Text; t.TextXAlignment = Enum.TextXAlignment.Left; t.BackgroundTransparency = 1
 		local del = Instance.new("TextButton", f)
-		del.Size = UDim2.fromOffset(24,24); del.Position = UDim2.new(1,-28,0,3)
-		del.Text = "X"; del.BackgroundColor3 = THEME.Red; del.TextColor3 = Color3.new(1,1,1)
-		Instance.new("UICorner", del).CornerRadius = UDim.new(0,4)
-		del.MouseButton1Click:Connect(function() table.remove(RainbowTargets, i); SoundManager.Play("Click"); RefreshTargets() end)
+		del.Size = UDim2.fromOffset(24,24); del.Position = UDim2.new(1,-28,0,3); del.Text = "X"; del.BackgroundColor3 = THEME.Red; del.TextColor3 = Color3.new(1,1,1)
+		Instance.new("UICorner", del).CornerRadius = UDim.new(0,4); del.MouseButton1Click:Connect(function() table.remove(RainbowTargets, i); SoundManager.Play("Click"); RefreshTargets() end)
 	end
 end
 
 TargInput.FocusLost:Connect(function(enter)
-	if enter and TargInput.Text ~= "" then
-		table.insert(RainbowTargets, TargInput.Text:lower())
-		TargInput.Text = ""; SoundManager.Play("Open"); RefreshTargets()
-	end
+	if enter and TargInput.Text ~= "" then table.insert(RainbowTargets, TargInput.Text:lower()); TargInput.Text = ""; SoundManager.Play("Open"); RefreshTargets() end
 end)
-
-ClearBtn.MouseButton1Click:Connect(function()
-	table.clear(RainbowTargets)
-	SoundManager.Play("Click")
-	RefreshTargets()
-end)
--- [[ KOPI'S ESP - FINAL BUILD (PART 2/2) ]]
--- Render Logic
+ClearBtn.MouseButton1Click:Connect(function() table.clear(RainbowTargets); SoundManager.Play("Click"); RefreshTargets() end)
+-- [[ KOPI'S ESP - FINAL WALLCHECK BUILD (PART 2/2) ]]
+-- Render Logic (Thick Skeleton + Wall Transparency)
 
 local ESPStore = {}
 local ChamStore = {} 
@@ -364,6 +301,18 @@ end
 
 local function GetRainbow() return Color3.fromHSV((tick()*0.5)%1, 0.8, 1) end
 
+-- WALL CHECK FUNCTION
+local function IsVisible(targetPart)
+	if not ESP_SETTINGS.WallCheck then return true end -- If toggle off, always opaque
+	local origin = Camera.CFrame.Position
+	local direction = targetPart.Position - origin
+	local params = RaycastParams.new()
+	params.FilterDescendantsInstances = {LocalPlayer.Character, targetPart.Parent} -- Ignore self & target
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local result = workspace:Raycast(origin, direction, params)
+	return result == nil -- Returns true if nothing is hit (Visible)
+end
+
 RunService.RenderStepped:Connect(function()
 	local vp = Camera.ViewportSize
 	local center = Vector2.new(vp.X/2, vp.Y/2)
@@ -387,21 +336,26 @@ RunService.RenderStepped:Connect(function()
 						Info = D("Text", {Size=11, Center=true, Outline=true, Font=2}),
 						BarOutline = D("Line", {Thickness=4, Color=Color3.new(0,0,0)}),
 						Bar = D("Line", {Thickness=2}),
-						Head = D("Circle", {Thickness=1.5, NumSides=20, Radius=0, Filled=false}),
+						Head = D("Circle", {Thickness=3, NumSides=20, Radius=0, Filled=false}),
 						Skeleton = {}
 					}
-					for i=1, 15 do table.insert(ESPStore[p].Skeleton, D("Line", {Thickness=2, Color=Color3.new(1,1,1)})) end
+					for i=1, 15 do table.insert(ESPStore[p].Skeleton, D("Line", {Thickness=4, Color=Color3.new(1,1,1)})) end
 				end
 				
 				local esp = ESPStore[p]
 				local col = isRainbowTarget(p.Name) and GetRainbow() or p.TeamColor.Color
 				local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
 				
+				-- Transparency Logic (Wall Check)
+				local visible = IsVisible(hrp)
+				local transp = visible and 1 or 0.25 -- 1 = Solid, 0.25 = See-through Ghost
+				
 				if ESP_SETTINGS.Chams then
 					if not ChamStore[p] or ChamStore[p].Parent ~= p.Character then
 						if ChamStore[p] then ChamStore[p]:Destroy() end
 						local h = Instance.new("Highlight", p.Character)
-						h.FillTransparency = 0.6; h.OutlineTransparency = 0.2
+						h.FillTransparency = visible and 0.5 or 0.85
+						h.OutlineTransparency = visible and 0.2 or 0.8
 						ChamStore[p] = h
 					end
 					ChamStore[p].FillColor = col; ChamStore[p].OutlineColor = Color3.new(1,1,1)
@@ -420,8 +374,10 @@ RunService.RenderStepped:Connect(function()
 						esp.Box.Size = Vector2.new(w, h)
 						esp.Box.Position = Vector2.new(pos.X - w/2, pos.Y - h/2)
 						esp.Box.Color = col
+						esp.Box.Transparency = transp
 						esp.BoxOutline.Size = Vector2.new(w, h)
 						esp.BoxOutline.Position = esp.Box.Position
+						esp.BoxOutline.Transparency = transp * 0.5
 					end
 					
 					esp.Tracer.Visible = ESP_SETTINGS.Tracers
@@ -429,6 +385,7 @@ RunService.RenderStepped:Connect(function()
 						esp.Tracer.From = Vector2.new(center.X, vp.Y)
 						esp.Tracer.To = Vector2.new(pos.X, pos.Y + h/2)
 						esp.Tracer.Color = col
+						esp.Tracer.Transparency = transp
 					end
 					
 					esp.Name.Visible = ESP_SETTINGS.Names
@@ -436,6 +393,7 @@ RunService.RenderStepped:Connect(function()
 						esp.Name.Text = p.Name
 						esp.Name.Position = Vector2.new(pos.X, pos.Y - h/2 - 16)
 						esp.Name.Color = col
+						esp.Name.Transparency = transp
 					end
 					
 					esp.Info.Visible = (ESP_SETTINGS.Distance or ESP_SETTINGS.HealthBar)
@@ -445,7 +403,8 @@ RunService.RenderStepped:Connect(function()
 						if ESP_SETTINGS.HealthBar then txt = txt.."["..math.floor(hum.Health).."]" end
 						esp.Info.Text = txt
 						esp.Info.Position = Vector2.new(pos.X, pos.Y + h/2 + 2)
-						esp.Info.Color = Color3.new(1,1,1)
+						esp.Info.Color = col
+						esp.Info.Transparency = transp
 					end
 					
 					esp.Bar.Visible = ESP_SETTINGS.HealthBar
@@ -458,9 +417,12 @@ RunService.RenderStepped:Connect(function()
 						local barH = h * hp
 						esp.BarOutline.From = Vector2.new(barX, barTop)
 						esp.BarOutline.To = Vector2.new(barX, barBot)
+						esp.BarOutline.Transparency = transp * 0.5
+						
 						esp.Bar.Color = Color3.fromHSV(hp * 0.3, 1, 1)
 						esp.Bar.From = Vector2.new(barX, barBot)
 						esp.Bar.To = Vector2.new(barX, barBot - barH)
+						esp.Bar.Transparency = transp
 					end
 					
 					local doSkel = ESP_SETTINGS.Skeleton
@@ -474,6 +436,7 @@ RunService.RenderStepped:Connect(function()
 							if hon then
 								esp.Head.Visible = true; esp.Head.Position = Vector2.new(hp.X, hp.Y)
 								esp.Head.Radius = math.clamp(400/pos.Z, 4, 15); esp.Head.Color = col
+								esp.Head.Transparency = transp
 							end
 						end
 						local links = (hum.RigType == Enum.HumanoidRigType.R15) and R15_LINKS or R6_LINKS
@@ -487,6 +450,7 @@ RunService.RenderStepped:Connect(function()
 									local s2, o2 = Camera:WorldToViewportPoint(p2.Position)
 									if o1 and o2 then
 										l.Visible = true; l.From = Vector2.new(s1.X, s1.Y); l.To = Vector2.new(s2.X, s2.Y); l.Color = col
+										l.Transparency = transp
 									end
 								end
 							end
