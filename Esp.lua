@@ -1,5 +1,5 @@
--- [[ KOPI'S ESP - FINAL WALLCHECK BUILD (PART 1/2) ]]
--- Features: Clamped Dragging, Draggable Pill, Smart Inputs, Wall Check
+-- [[ KOPI'S ESP - FINAL THICKNESS UPDATE (PART 1/2) ]]
+-- Features: Clamped Dragging, Draggable Pill, Smart Inputs, Colored Text
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -20,8 +20,7 @@ getgenv().ESP_SETTINGS = {
 	Names = true,
 	Distance = true,
 	HealthBar = true,
-	HideTeam = false,
-	WallCheck = false -- New Toggle
+	HideTeam = false
 }
 getgenv().RainbowTargets = {}
 
@@ -75,7 +74,7 @@ ScreenGui.ResetOnSpawn = false
 
 -- [[ MAIN FRAME ]]
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.fromOffset(260, 400) -- Increased Height for new toggle
+MainFrame.Size = UDim2.fromOffset(260, 360)
 MainFrame.Position = LoadPosition()
 MainFrame.BackgroundColor3 = THEME.Bg
 MainFrame.BorderSizePixel = 0
@@ -224,9 +223,7 @@ local function CreateToggle(text, configKey)
 end
 
 CreateToggle("ESP Boxes", "Box"); CreateToggle("Skeleton", "Skeleton"); CreateToggle("Chams", "Chams"); CreateToggle("Tracers", "Tracers")
-CreateToggle("Names", "Names"); CreateToggle("Distance", "Distance"); CreateToggle("Health Bar + HP", "HealthBar")
-CreateToggle("Wall Check (Fade)", "WallCheck") -- New Toggle
-CreateToggle("Hide Team", "HideTeam")
+CreateToggle("Names", "Names"); CreateToggle("Distance", "Distance"); CreateToggle("Health Bar + HP", "HealthBar"); CreateToggle("Hide Team", "HideTeam")
 
 VisLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() VisPage.CanvasSize = UDim2.fromOffset(0, VisLayout.AbsoluteContentSize.Y + 10) end)
 
@@ -262,8 +259,8 @@ TargInput.FocusLost:Connect(function(enter)
 	if enter and TargInput.Text ~= "" then table.insert(RainbowTargets, TargInput.Text:lower()); TargInput.Text = ""; SoundManager.Play("Open"); RefreshTargets() end
 end)
 ClearBtn.MouseButton1Click:Connect(function() table.clear(RainbowTargets); SoundManager.Play("Click"); RefreshTargets() end)
--- [[ KOPI'S ESP - FINAL FIX (PART 2/2) ]]
--- Fixes: Box Visibility, Wall Check Optimization
+-- [[ KOPI'S ESP - FINAL THICKNESS UPDATE (PART 2/2) ]]
+-- Render Logic (Thicker Skeleton)
 
 local ESPStore = {}
 local ChamStore = {} 
@@ -301,18 +298,6 @@ end
 
 local function GetRainbow() return Color3.fromHSV((tick()*0.5)%1, 0.8, 1) end
 
--- Optimized Wall Check
-local function CheckWall(targetPart)
-	if not ESP_SETTINGS.WallCheck then return true end -- Skip raycast if off
-	local origin = Camera.CFrame.Position
-	local direction = targetPart.Position - origin
-	local params = RaycastParams.new()
-	params.FilterDescendantsInstances = {LocalPlayer.Character, targetPart.Parent}
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	local result = workspace:Raycast(origin, direction, params)
-	return result == nil
-end
-
 RunService.RenderStepped:Connect(function()
 	local vp = Camera.ViewportSize
 	local center = Vector2.new(vp.X/2, vp.Y/2)
@@ -336,9 +321,11 @@ RunService.RenderStepped:Connect(function()
 						Info = D("Text", {Size=11, Center=true, Outline=true, Font=2}),
 						BarOutline = D("Line", {Thickness=4, Color=Color3.new(0,0,0)}),
 						Bar = D("Line", {Thickness=2}),
+						-- INCREASED THICKNESS HERE (1.5 -> 3)
 						Head = D("Circle", {Thickness=3, NumSides=20, Radius=0, Filled=false}),
 						Skeleton = {}
 					}
+					-- INCREASED THICKNESS HERE (2 -> 4)
 					for i=1, 15 do table.insert(ESPStore[p].Skeleton, D("Line", {Thickness=4, Color=Color3.new(1,1,1)})) end
 				end
 				
@@ -346,17 +333,11 @@ RunService.RenderStepped:Connect(function()
 				local col = isRainbowTarget(p.Name) and GetRainbow() or p.TeamColor.Color
 				local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
 				
-				-- Calc Transparency
-				local visible = CheckWall(hrp)
-				local transp = visible and 1 or 0.3
-				
-				-- Chams
 				if ESP_SETTINGS.Chams then
 					if not ChamStore[p] or ChamStore[p].Parent ~= p.Character then
 						if ChamStore[p] then ChamStore[p]:Destroy() end
 						local h = Instance.new("Highlight", p.Character)
-						h.FillTransparency = visible and 0.5 or 0.8
-						h.OutlineTransparency = visible and 0.2 or 0.8
+						h.FillTransparency = 0.6; h.OutlineTransparency = 0.2
 						ChamStore[p] = h
 					end
 					ChamStore[p].FillColor = col; ChamStore[p].OutlineColor = Color3.new(1,1,1)
@@ -369,100 +350,68 @@ RunService.RenderStepped:Connect(function()
 					local size = math.clamp(2000/pos.Z, 25, 300)
 					local w, h = size, size*1.5
 					
-					-- BOX LOGIC
+					esp.BoxOutline.Visible = ESP_SETTINGS.Box
+					esp.Box.Visible = ESP_SETTINGS.Box
 					if ESP_SETTINGS.Box then
 						esp.Box.Size = Vector2.new(w, h)
 						esp.Box.Position = Vector2.new(pos.X - w/2, pos.Y - h/2)
 						esp.Box.Color = col
-						esp.Box.Transparency = transp
-						
 						esp.BoxOutline.Size = Vector2.new(w, h)
 						esp.BoxOutline.Position = esp.Box.Position
-						esp.BoxOutline.Transparency = transp * 0.5
-						
-						esp.Box.Visible = true
-						esp.BoxOutline.Visible = true
-					else
-						esp.Box.Visible = false
-						esp.BoxOutline.Visible = false
 					end
 					
-					-- TRACER LOGIC
+					esp.Tracer.Visible = ESP_SETTINGS.Tracers
 					if ESP_SETTINGS.Tracers then
 						esp.Tracer.From = Vector2.new(center.X, vp.Y)
 						esp.Tracer.To = Vector2.new(pos.X, pos.Y + h/2)
 						esp.Tracer.Color = col
-						esp.Tracer.Transparency = transp
-						esp.Tracer.Visible = true
-					else
-						esp.Tracer.Visible = false
 					end
 					
-					-- NAME LOGIC
+					esp.Name.Visible = ESP_SETTINGS.Names
 					if ESP_SETTINGS.Names then
 						esp.Name.Text = p.Name
 						esp.Name.Position = Vector2.new(pos.X, pos.Y - h/2 - 16)
 						esp.Name.Color = col
-						esp.Name.Transparency = transp
-						esp.Name.Visible = true
-					else
-						esp.Name.Visible = false
 					end
 					
-					-- INFO LOGIC
-					if (ESP_SETTINGS.Distance or ESP_SETTINGS.HealthBar) then
+					esp.Info.Visible = (ESP_SETTINGS.Distance or ESP_SETTINGS.HealthBar)
+					if esp.Info.Visible then
 						local txt = ""
 						if ESP_SETTINGS.Distance then txt = math.floor(dist).."m " end
 						if ESP_SETTINGS.HealthBar then txt = txt.."["..math.floor(hum.Health).."]" end
 						esp.Info.Text = txt
 						esp.Info.Position = Vector2.new(pos.X, pos.Y + h/2 + 2)
-						esp.Info.Color = col
-						esp.Info.Transparency = transp
-						esp.Info.Visible = true
-					else
-						esp.Info.Visible = false
+						esp.Info.Color = col 
 					end
 					
-					-- BAR LOGIC
+					esp.Bar.Visible = ESP_SETTINGS.HealthBar
+					esp.BarOutline.Visible = ESP_SETTINGS.HealthBar
 					if ESP_SETTINGS.HealthBar then
 						local hp = math.clamp(hum.Health/hum.MaxHealth, 0, 1)
 						local barX = pos.X - w/2 - 6
 						local barTop = pos.Y - h/2
 						local barBot = pos.Y + h/2
 						local barH = h * hp
-						
 						esp.BarOutline.From = Vector2.new(barX, barTop)
 						esp.BarOutline.To = Vector2.new(barX, barBot)
-						esp.BarOutline.Transparency = transp * 0.5
-						esp.BarOutline.Visible = true
-						
+						esp.Bar.Color = Color3.fromHSV(hp * 0.3, 1, 1)
 						esp.Bar.From = Vector2.new(barX, barBot)
 						esp.Bar.To = Vector2.new(barX, barBot - barH)
-						esp.Bar.Color = Color3.fromHSV(hp * 0.3, 1, 1)
-						esp.Bar.Transparency = transp
-						esp.Bar.Visible = true
-					else
-						esp.Bar.Visible = false
-						esp.BarOutline.Visible = false
 					end
 					
-					-- SKELETON LOGIC
 					local doSkel = ESP_SETTINGS.Skeleton
+					for _, l in ipairs(esp.Skeleton) do l.Visible = false end
+					esp.Head.Visible = false
+					
 					if doSkel then
 						local hObj = p.Character:FindFirstChild("Head")
 						if hObj then
 							local hp, hon = Camera:WorldToViewportPoint(hObj.Position)
 							if hon then
-								esp.Head.Position = Vector2.new(hp.X, hp.Y)
-								esp.Head.Radius = math.clamp(400/pos.Z, 4, 15)
-								esp.Head.Color = col
-								esp.Head.Transparency = transp
-								esp.Head.Visible = true
-							else
-								esp.Head.Visible = false
+								esp.Head.Visible = true; esp.Head.Position = Vector2.new(hp.X, hp.Y)
+								esp.Head.Radius = math.clamp(400/pos.Z, 4, 15); esp.Head.Color = col
 							end
 						end
-						
 						local links = (hum.RigType == Enum.HumanoidRigType.R15) and R15_LINKS or R6_LINKS
 						for i, lnk in ipairs(links) do
 							local l = esp.Skeleton[i]
@@ -473,22 +422,11 @@ RunService.RenderStepped:Connect(function()
 									local s1, o1 = Camera:WorldToViewportPoint(p1.Position)
 									local s2, o2 = Camera:WorldToViewportPoint(p2.Position)
 									if o1 and o2 then
-										l.From = Vector2.new(s1.X, s1.Y)
-										l.To = Vector2.new(s2.X, s2.Y)
-										l.Color = col
-										l.Transparency = transp
-										l.Visible = true
-									else
-										l.Visible = false
+										l.Visible = true; l.From = Vector2.new(s1.X, s1.Y); l.To = Vector2.new(s2.X, s2.Y); l.Color = col
 									end
-								else
-									l.Visible = false
 								end
 							end
 						end
-					else
-						for _, l in ipairs(esp.Skeleton) do l.Visible = false end
-						esp.Head.Visible = false
 					end
 				else
 					for _, d in pairs(esp) do
