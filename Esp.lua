@@ -1,4 +1,4 @@
--- [[ KOPI'S ESP - FIXED BOXES & WALLCHECK (PART 1) ]]
+-- [[ KOPI'S ESP - FIXED VISIBILITY (PART 1) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -19,7 +19,7 @@ getgenv().ESP_SETTINGS = {
 	Distance = true,
 	HealthBar = true,
 	HideTeam = false,
-	WallCheck = false
+	WallCheck = false -- [[ TOGGLE IN MENU ]]
 }
 getgenv().RainbowTargets = {}
 
@@ -182,8 +182,8 @@ local function CreateTabBtn(text, posScale, cb)
 	b.TextSize = 13; b.TextColor3 = THEME.Text; b.ZIndex = 2
 	b.MouseButton1Click:Connect(function() SoundManager.Play("Click"); cb() end)
 end
--- [[ PASTE PART 2 BELOW THIS LINE ]]
--- [[ KOPI'S ESP - FIXED BOXES (PART 2) ]]
+-- [[ PASTE PART 2 DIRECTLY BELOW ]]
+-- [[ KOPI'S ESP - FIXED VISIBILITY (PART 2) ]]
 local PageContainer = Instance.new("Frame", MainFrame)
 PageContainer.Position = UDim2.new(0, 10, 0, 94); PageContainer.Size = UDim2.new(1, -20, 1, -104)
 PageContainer.BackgroundTransparency = 1; PageContainer.ClipsDescendants = true
@@ -342,17 +342,17 @@ RunService.RenderStepped:Connect(function()
 				
 				if not ESPStore[p] then
 					ESPStore[p] = {
-						Box = D("Square", {Thickness=1.5, Filled=false, Transparency=1}),
-						BoxOutline = D("Square", {Thickness=3, Filled=false, Transparency=0.5, Color=Color3.new(0,0,0)}),
+						Box = D("Square", {Thickness=1.5, Filled=false, Transparency=1, ZIndex=10}),
+						BoxOutline = D("Square", {Thickness=3, Filled=false, Transparency=1, Color=Color3.new(0,0,0), ZIndex=5}),
 						Tracer = D("Line", {Thickness=1, Transparency=1}),
-						Name = D("Text", {Size=13, Center=true, Outline=true, Font=2}),
-						Info = D("Text", {Size=11, Center=true, Outline=true, Font=2}),
-						BarOutline = D("Line", {Thickness=4, Color=Color3.new(0,0,0)}),
-						Bar = D("Line", {Thickness=2}),
-						Head = D("Circle", {Thickness=1.5, NumSides=20, Radius=0, Filled=false}),
+						Name = D("Text", {Size=13, Center=true, Outline=true, Font=2, Transparency=1}),
+						Info = D("Text", {Size=11, Center=true, Outline=true, Font=2, Transparency=1}),
+						BarOutline = D("Line", {Thickness=4, Color=Color3.new(0,0,0), Transparency=1}),
+						Bar = D("Line", {Thickness=2, Transparency=1}),
+						Head = D("Circle", {Thickness=1.5, NumSides=20, Radius=0, Filled=false, Transparency=1}),
 						Skeleton = {}
 					}
-					for i=1, 15 do table.insert(ESPStore[p].Skeleton, D("Line", {Thickness=2, Color=Color3.new(1,1,1)})) end
+					for i=1, 15 do table.insert(ESPStore[p].Skeleton, D("Line", {Thickness=2, Color=Color3.new(1,1,1), Transparency=1})) end
 				end
 				
 				local esp = ESPStore[p]
@@ -392,36 +392,36 @@ RunService.RenderStepped:Connect(function()
 					local size = math.clamp(2000/pos.Z, 25, 300)
 					local w, h = size, size*1.5
 					
-					-- [[ APPLY VISIBILITY FADE ]]
-					local mainTrans = isVisible and 1 or 0.4
-					local dimTrans = isVisible and 0.5 or 0.2
+					-- [[ COLOR DIMMING INSTEAD OF TRANSPARENCY ]]
+					-- If hidden, we darken the color significantly to simulate fading
+					local finalCol = isVisible and col or Color3.new(col.R*0.3, col.G*0.3, col.B*0.3)
 					
 					esp.BoxOutline.Visible = ESP_SETTINGS.Box
 					esp.Box.Visible = ESP_SETTINGS.Box
 					if ESP_SETTINGS.Box then
 						esp.Box.Size = Vector2.new(w, h)
 						esp.Box.Position = Vector2.new(pos.X - w/2, pos.Y - h/2)
-						esp.Box.Color = col
-						esp.Box.Transparency = mainTrans
+						esp.Box.Color = finalCol
+						esp.Box.Transparency = 1 -- Force Visible
 						esp.BoxOutline.Size = Vector2.new(w, h)
 						esp.BoxOutline.Position = esp.Box.Position
-						esp.BoxOutline.Transparency = dimTrans
+						esp.BoxOutline.Transparency = 0.5 -- Keep outline subtle
 					end
 					
 					esp.Tracer.Visible = ESP_SETTINGS.Tracers
 					if ESP_SETTINGS.Tracers then
 						esp.Tracer.From = Vector2.new(center.X, vp.Y)
 						esp.Tracer.To = Vector2.new(pos.X, pos.Y + h/2)
-						esp.Tracer.Color = col
-						esp.Tracer.Transparency = mainTrans
+						esp.Tracer.Color = finalCol
+						esp.Tracer.Transparency = 1
 					end
 					
 					esp.Name.Visible = ESP_SETTINGS.Names
 					if ESP_SETTINGS.Names then
 						esp.Name.Text = p.Name
 						esp.Name.Position = Vector2.new(pos.X, pos.Y - h/2 - 16)
-						esp.Name.Color = col
-						esp.Name.Transparency = mainTrans
+						esp.Name.Color = finalCol
+						esp.Name.Transparency = 1
 					end
 					
 					esp.Info.Visible = (ESP_SETTINGS.Distance or ESP_SETTINGS.HealthBar)
@@ -431,8 +431,8 @@ RunService.RenderStepped:Connect(function()
 						if ESP_SETTINGS.HealthBar then txt = txt.."["..math.floor(hum.Health).."]" end
 						esp.Info.Text = txt
 						esp.Info.Position = Vector2.new(pos.X, pos.Y + h/2 + 2)
-						esp.Info.Color = col
-						esp.Info.Transparency = mainTrans
+						esp.Info.Color = finalCol
+						esp.Info.Transparency = 1
 					end
 					
 					esp.Bar.Visible = ESP_SETTINGS.HealthBar
@@ -445,11 +445,9 @@ RunService.RenderStepped:Connect(function()
 						local barH = h * hp
 						esp.BarOutline.From = Vector2.new(barX, barTop)
 						esp.BarOutline.To = Vector2.new(barX, barBot)
-						esp.BarOutline.Transparency = mainTrans
 						esp.Bar.Color = Color3.fromHSV(hp * 0.3, 1, 1)
 						esp.Bar.From = Vector2.new(barX, barBot)
 						esp.Bar.To = Vector2.new(barX, barBot - barH)
-						esp.Bar.Transparency = mainTrans
 					end
 					
 					local doSkel = ESP_SETTINGS.Skeleton
@@ -462,8 +460,8 @@ RunService.RenderStepped:Connect(function()
 							local hp, hon = Camera:WorldToViewportPoint(hObj.Position)
 							if hon then
 								esp.Head.Visible = true; esp.Head.Position = Vector2.new(hp.X, hp.Y)
-								esp.Head.Radius = math.clamp(400/pos.Z, 4, 15); esp.Head.Color = col
-								esp.Head.Transparency = mainTrans
+								esp.Head.Radius = math.clamp(400/pos.Z, 4, 15); esp.Head.Color = finalCol
+								esp.Head.Transparency = 1
 							end
 						end
 						local links = (hum.RigType == Enum.HumanoidRigType.R15) and R15_LINKS or R6_LINKS
@@ -477,7 +475,7 @@ RunService.RenderStepped:Connect(function()
 									local s2, o2 = Camera:WorldToViewportPoint(p2.Position)
 									if o1 and o2 then
 										l.Visible = true; l.From = Vector2.new(s1.X, s1.Y); l.To = Vector2.new(s2.X, s2.Y)
-										l.Color = col; l.Transparency = mainTrans
+										l.Color = finalCol; l.Transparency = 1
 									end
 								end
 							end
