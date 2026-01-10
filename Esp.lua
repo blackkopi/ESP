@@ -1,5 +1,5 @@
--- [[ KOPI'S ESP - FINAL COLOR UPDATE (PART 1/2) ]]
--- Features: Clamped Dragging, Draggable Pill, Smart Inputs, Colored Text
+-- [[ KOPI'S ESP - FIXED CHAMS UPDATE (PART 1) ]]
+-- Copy this part first!
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -197,6 +197,8 @@ TargPage.Size = UDim2.new(1,0,1,0); TargPage.BackgroundTransparency = 1; TargPag
 
 CreateTabBtn("VISUALS", 0, function() CreateTween(TabHighlight, {Position = UDim2.new(0, 2, 0, 2)}); TargPage.Visible = false; VisPage.Visible = true end)
 CreateTabBtn("TARGETS", 0.5, function() CreateTween(TabHighlight, {Position = UDim2.new(0.5, 2, 0, 2)}); VisPage.Visible = false; TargPage.Visible = true end)
+-- [[ KOPI'S ESP - FIXED CHAMS UPDATE (PART 2) ]]
+-- Paste this directly under Part 1
 
 local function CreateToggle(text, configKey)
 	local Btn = Instance.new("TextButton", VisPage)
@@ -251,7 +253,8 @@ local function RefreshTargets()
 		t.Font = Enum.Font.Gotham; t.TextColor3 = THEME.Text; t.TextXAlignment = Enum.TextXAlignment.Left; t.BackgroundTransparency = 1
 		local del = Instance.new("TextButton", f)
 		del.Size = UDim2.fromOffset(24,24); del.Position = UDim2.new(1,-28,0,3); del.Text = "X"; del.BackgroundColor3 = THEME.Red; del.TextColor3 = Color3.new(1,1,1)
-		Instance.new("UICorner", del).CornerRadius = UDim.new(0,4); del.MouseButton1Click:Connect(function() table.remove(RainbowTargets, i); SoundManager.Play("Click"); RefreshTargets() end)
+		Instance.new("UICorner", del).CornerRadius = UDim.new(0,4);
+		del.MouseButton1Click:Connect(function() table.remove(RainbowTargets, i); SoundManager.Play("Click"); RefreshTargets() end)
 	end
 end
 
@@ -259,11 +262,10 @@ TargInput.FocusLost:Connect(function(enter)
 	if enter and TargInput.Text ~= "" then table.insert(RainbowTargets, TargInput.Text:lower()); TargInput.Text = ""; SoundManager.Play("Open"); RefreshTargets() end
 end)
 ClearBtn.MouseButton1Click:Connect(function() table.clear(RainbowTargets); SoundManager.Play("Click"); RefreshTargets() end)
--- [[ KOPI'S ESP - FINAL COLOR UPDATE (PART 2/2) ]]
--- Render Logic (Fixed Text Colors)
+
+-- [[ ESP LOGIC & CHAMS FIX ]]
 
 local ESPStore = {}
-local ChamStore = {} 
 
 local R15_LINKS = {
 	{"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"}, {"LowerTorso", "LeftUpperLeg"},
@@ -287,8 +289,37 @@ local function cleanup(p)
 		end
 		ESPStore[p]=nil
 	end
-	if ChamStore[p] then ChamStore[p]:Destroy(); ChamStore[p]=nil end
 end
+
+-- [[ FIXED CHAMS LOGIC ]]
+local function ApplyChams(character)
+	-- Remove old highlight if it exists to avoid duplicates
+	local old = character:FindFirstChild("KopiHighlight")
+	if old then old:Destroy() end
+
+	local h = Instance.new("Highlight", character)
+	h.Name = "KopiHighlight"
+	h.FillTransparency = 0.6
+	h.OutlineTransparency = 0.2
+	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+end
+
+local function PlayerSetup(p)
+	-- Apply to current character if exists
+	if p.Character then ApplyChams(p.Character) end
+	
+	-- Connect to future respawns (THE FIX)
+	p.CharacterAdded:Connect(function(char)
+		task.wait(0.5) -- Wait for model load
+		ApplyChams(char)
+	end)
+end
+
+-- Initialize for all players
+for _, p in ipairs(Players:GetPlayers()) do
+	if p ~= LocalPlayer then PlayerSetup(p) end
+end
+Players.PlayerAdded:Connect(PlayerSetup)
 
 local function isRainbowTarget(name)
 	name = name:lower()
@@ -309,7 +340,11 @@ RunService.RenderStepped:Connect(function()
 			
 			if hum and hrp and hum.Health > 0 then
 				if ESP_SETTINGS.HideTeam and p.Team == LocalPlayer.Team then
-					cleanup(p); continue
+					cleanup(p); 
+					-- Hide cham if teammate hidden
+					local h = p.Character:FindFirstChild("KopiHighlight")
+					if h then h.Enabled = false end
+					continue
 				end
 				
 				if not ESPStore[p] then
@@ -331,16 +366,15 @@ RunService.RenderStepped:Connect(function()
 				local col = isRainbowTarget(p.Name) and GetRainbow() or p.TeamColor.Color
 				local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
 				
-				if ESP_SETTINGS.Chams then
-					if not ChamStore[p] or ChamStore[p].Parent ~= p.Character then
-						if ChamStore[p] then ChamStore[p]:Destroy() end
-						local h = Instance.new("Highlight", p.Character)
-						h.FillTransparency = 0.6; h.OutlineTransparency = 0.2
-						ChamStore[p] = h
-					end
-					ChamStore[p].FillColor = col; ChamStore[p].OutlineColor = Color3.new(1,1,1)
+				-- [[ UPDATE CHAMS COLOR/VISIBILITY ]]
+				local cham = p.Character:FindFirstChild("KopiHighlight")
+				if not cham then
+					-- Retry creation if missing (failsafe)
+					if ESP_SETTINGS.Chams then ApplyChams(p.Character) end
 				else
-					if ChamStore[p] then ChamStore[p]:Destroy(); ChamStore[p]=nil end
+					cham.Enabled = ESP_SETTINGS.Chams
+					cham.FillColor = col
+					cham.OutlineColor = Color3.new(1,1,1)
 				end
 				
 				if onScreen then
@@ -379,7 +413,6 @@ RunService.RenderStepped:Connect(function()
 						if ESP_SETTINGS.HealthBar then txt = txt.."["..math.floor(hum.Health).."]" end
 						esp.Info.Text = txt
 						esp.Info.Position = Vector2.new(pos.X, pos.Y + h/2 + 2)
-						-- CHANGE: Now uses 'col' (Team Color/Rainbow) instead of white
 						esp.Info.Color = col 
 					end
 					
