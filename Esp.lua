@@ -201,7 +201,10 @@ TargPage.Size = UDim2.new(1,0,1,0); TargPage.BackgroundTransparency = 1; TargPag
 
 CreateTabBtn("VISUALS", 0, function() CreateTween(TabHighlight, {Position = UDim2.new(0, 2, 0, 2)}); TargPage.Visible = false; VisPage.Visible = true end)
 CreateTabBtn("TARGETS", 0.5, function() CreateTween(TabHighlight, {Position = UDim2.new(0.5, 2, 0, 2)}); VisPage.Visible = false; TargPage.Visible = true end)
--- [[ KOPI'S ESP: REFORGED - PART 2 ]]
+
+-- [[ KOPI'S ESP: FINAL FIX (PART 2) ]]
+-- Paste this under Part 1
+
 local function CreateToggle(text, configKey)
 	local Btn = Instance.new("TextButton", VisPage)
 	Btn.Size = UDim2.new(1, 0, 0, 36); Btn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
@@ -330,24 +333,22 @@ getgenv().KopiLoop = RunService.RenderStepped:Connect(function()
 					cleanup(p); local h = p.Character:FindFirstChild("KopiHighlight"); if h then h.Enabled = false end; continue
 				end
 				
-				-- [[ 1. DETERMINE VISIBILITY FACTOR ]]
-				local visFactor = 1      -- 1 = Fully Visible, 0.3 = Obstructed
-				local outlineFactor = 0.5 -- 0.5 = Visible, 0.2 = Obstructed (faint)
-				
+				-- [[ 1. VISIBILITY CALCULATIONS ]]
+				local isVisible = true
 				if ESP_SETTINGS.WallCheck then
 					RayParams.FilterDescendantsInstances = {LocalPlayer.Character, p.Character}
 					local ray = workspace:Raycast(Camera.CFrame.Position, hrp.Position - Camera.CFrame.Position, RayParams)
-					if ray then 
-						visFactor = 0.4 -- Behind wall: Faint
-						outlineFactor = 0.2 
-					end
+					if ray then isVisible = false end
 				end
-
+				
+				-- Transparency Logic: 1 = Visible, 0.3 = Hidden (Faint)
+				local alpha = isVisible and 1 or 0.4
+				
 				-- [[ 2. SETUP DRAWINGS ]]
 				if not ESPStore[p] then
 					ESPStore[p] = {
 						Box = D("Square", {Thickness=1.5, Filled=false, Transparency=1}),
-						BoxOutline = D("Square", {Thickness=3, Filled=false, Transparency=0.5, Color=Color3.new(0,0,0)}),
+						BoxOutline = D("Square", {Thickness=2, Filled=false, Transparency=1, Color=Color3.new(0,0,0)}),
 						Tracer = D("Line", {Thickness=1, Transparency=1}),
 						Name = D("Text", {Size=13, Center=true, Outline=true, Font=2}),
 						Info = D("Text", {Size=11, Center=true, Outline=true, Font=2}),
@@ -363,57 +364,53 @@ getgenv().KopiLoop = RunService.RenderStepped:Connect(function()
 				local col = isRainbowTarget(p.Name) and GetRainbow() or p.TeamColor.Color
 				local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
 				
-				-- [[ 3. HANDLE CHAMS ]]
+				-- [[ 3. HIGHLIGHTS (CHAMS) ]]
 				local cham = p.Character:FindFirstChild("KopiHighlight")
 				if not cham then if ESP_SETTINGS.Chams then ApplyChams(p.Character) end
 				else
 					cham.Enabled = ESP_SETTINGS.Chams
 					cham.FillColor = col; cham.OutlineColor = Color3.new(1,1,1)
 					if ESP_SETTINGS.Chams then
-						-- In Highlights: 0 is visible, 1 is invisible. 
-						-- If visFactor is 1 (Visible), FillTransparency should be 0.6.
-						-- If visFactor is 0.4 (Obstructed), FillTransparency should be 0.85 (faint).
-						cham.FillTransparency = (visFactor < 1) and 0.85 or 0.6
-						cham.OutlineTransparency = (visFactor < 1) and 0.9 or 0.2
+						cham.FillTransparency = isVisible and 0.6 or 0.85
+						cham.OutlineTransparency = isVisible and 0.2 or 0.9
 					end
 				end
 				
-				-- [[ 4. DRAW ELEMENTS ]]
+				-- [[ 4. DRAWING ELEMENTS ]]
 				if onScreen then
 					local dist = (Camera.CFrame.Position - hrp.Position).Magnitude
 					local size = math.clamp(2000/pos.Z, 25, 300)
 					local w, h = size, size*1.5
 					
-					-- Apply transparency to ALL enabled drawings
-					local alpha = visFactor 
-
-					-- BOX
+					-- FORCE VISIBILITY UPDATE
 					if ESP_SETTINGS.Box then
-						esp.Box.Visible = true; esp.BoxOutline.Visible = true
-						esp.Box.Size = Vector2.new(w, h); esp.Box.Position = Vector2.new(pos.X - w/2, pos.Y - h/2)
-						esp.Box.Color = col; esp.Box.Transparency = alpha
+						esp.Box.Visible = true
+						esp.Box.Size = Vector2.new(w, h)
+						esp.Box.Position = Vector2.new(pos.X - w/2, pos.Y - h/2)
+						esp.Box.Color = col
+						esp.Box.Transparency = alpha
 						
-						esp.BoxOutline.Size = Vector2.new(w, h); esp.BoxOutline.Position = esp.Box.Position
-						esp.BoxOutline.Transparency = outlineFactor
+						esp.BoxOutline.Visible = true
+						esp.BoxOutline.Size = Vector2.new(w, h)
+						esp.BoxOutline.Position = esp.Box.Position
+						esp.BoxOutline.Transparency = isVisible and 0.5 or 0.2
 					else
-						esp.Box.Visible = false; esp.BoxOutline.Visible = false
+						esp.Box.Visible = false
+						esp.BoxOutline.Visible = false
 					end
 					
-					-- TRACERS
 					if ESP_SETTINGS.Tracers then
 						esp.Tracer.Visible = true
 						esp.Tracer.From = Vector2.new(center.X, vp.Y); esp.Tracer.To = Vector2.new(pos.X, pos.Y + h/2)
 						esp.Tracer.Color = col; esp.Tracer.Transparency = alpha
 					else esp.Tracer.Visible = false end
 					
-					-- NAME
 					if ESP_SETTINGS.Names then
 						esp.Name.Visible = true
 						esp.Name.Text = p.Name; esp.Name.Position = Vector2.new(pos.X, pos.Y - h/2 - 16)
 						esp.Name.Color = col; esp.Name.Transparency = alpha
 					else esp.Name.Visible = false end
 					
-					-- INFO
 					if (ESP_SETTINGS.Distance or ESP_SETTINGS.HealthBar) then
 						esp.Info.Visible = true
 						local txt = ""; if ESP_SETTINGS.Distance then txt = math.floor(dist).."m " end
@@ -422,7 +419,6 @@ getgenv().KopiLoop = RunService.RenderStepped:Connect(function()
 						esp.Info.Color = col; esp.Info.Transparency = alpha
 					else esp.Info.Visible = false end
 					
-					-- HEALTH BAR
 					if ESP_SETTINGS.HealthBar then
 						esp.Bar.Visible = true; esp.BarOutline.Visible = true
 						local hp = math.clamp(hum.Health/hum.MaxHealth, 0, 1)
@@ -434,7 +430,6 @@ getgenv().KopiLoop = RunService.RenderStepped:Connect(function()
 						esp.Bar.To = Vector2.new(barX, barBot - barH); esp.Bar.Transparency = alpha
 					else esp.Bar.Visible = false; esp.BarOutline.Visible = false end
 					
-					-- SKELETON
 					local doSkel = ESP_SETTINGS.Skeleton
 					for _, l in ipairs(esp.Skeleton) do l.Visible = false end
 					esp.Head.Visible = false
@@ -463,7 +458,6 @@ getgenv().KopiLoop = RunService.RenderStepped:Connect(function()
 						end
 					end
 				else
-					-- OFFSCREEN: HIDE ALL
 					for _, d in pairs(esp) do if typeof(d)=="table" then for _,s in pairs(d) do s.Visible=false end else d.Visible=false end end
 				end
 			else
