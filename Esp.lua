@@ -1,5 +1,4 @@
--- [[ KOPI'S ESP - FADED WALLCHECK (PART 1) ]]
--- Copy this and paste it into your executor first.
+-- [[ KOPI'S ESP - FIXED BOXES & WALLCHECK (PART 1) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -20,7 +19,7 @@ getgenv().ESP_SETTINGS = {
 	Distance = true,
 	HealthBar = true,
 	HideTeam = false,
-	WallCheck = false -- [[ TOGGLE THIS IN MENU ]]
+	WallCheck = false
 }
 getgenv().RainbowTargets = {}
 
@@ -183,10 +182,8 @@ local function CreateTabBtn(text, posScale, cb)
 	b.TextSize = 13; b.TextColor3 = THEME.Text; b.ZIndex = 2
 	b.MouseButton1Click:Connect(function() SoundManager.Play("Click"); cb() end)
 end
--- [[ END OF PART 1 - PASTE PART 2 BELOW ]]
--- [[ KOPI'S ESP - FADED WALLCHECK (PART 2) ]]
--- Paste this directly under Part 1
-
+-- [[ PASTE PART 2 BELOW THIS LINE ]]
+-- [[ KOPI'S ESP - FIXED BOXES (PART 2) ]]
 local PageContainer = Instance.new("Frame", MainFrame)
 PageContainer.Position = UDim2.new(0, 10, 0, 94); PageContainer.Size = UDim2.new(1, -20, 1, -104)
 PageContainer.BackgroundTransparency = 1; PageContainer.ClipsDescendants = true
@@ -362,9 +359,9 @@ RunService.RenderStepped:Connect(function()
 				local col = isRainbowTarget(p.Name) and GetRainbow() or p.TeamColor.Color
 				local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
 				
-				-- [[ VISIBILITY CHECK ]]
+				-- [[ CHECK VISIBILITY ]]
 				local isVisible = true
-				if ESP_SETTINGS.WallCheck then
+				if ESP_SETTINGS.WallCheck and LocalPlayer.Character then
 					local params = RaycastParams.new()
 					params.FilterType = Enum.RaycastFilterType.Exclude
 					params.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
@@ -375,9 +372,6 @@ RunService.RenderStepped:Connect(function()
 					end
 				end
 
-				-- Calculate Transparency Factor (1 = Visible, 0.2 = Hidden/Faint)
-				local fadeFactor = isVisible and 1 or 0.2
-
 				-- [[ UPDATE CHAMS ]]
 				local cham = p.Character:FindFirstChild("KopiHighlight")
 				if not cham then
@@ -386,9 +380,11 @@ RunService.RenderStepped:Connect(function()
 					cham.Enabled = ESP_SETTINGS.Chams
 					cham.FillColor = col
 					cham.OutlineColor = Color3.new(1,1,1)
-					-- Modulate transparency based on visibility
-					cham.FillTransparency = isVisible and 0.6 or 0.9
-					cham.OutlineTransparency = isVisible and 0.2 or 0.8
+					if isVisible then
+						cham.FillTransparency = 0.6; cham.OutlineTransparency = 0.2
+					else
+						cham.FillTransparency = 0.9; cham.OutlineTransparency = 0.8
+					end
 				end
 				
 				if onScreen then
@@ -396,17 +392,20 @@ RunService.RenderStepped:Connect(function()
 					local size = math.clamp(2000/pos.Z, 25, 300)
 					local w, h = size, size*1.5
 					
-					-- Update Properties & Apply Fading
+					-- [[ APPLY VISIBILITY FADE ]]
+					local mainTrans = isVisible and 1 or 0.4
+					local dimTrans = isVisible and 0.5 or 0.2
+					
 					esp.BoxOutline.Visible = ESP_SETTINGS.Box
 					esp.Box.Visible = ESP_SETTINGS.Box
 					if ESP_SETTINGS.Box then
 						esp.Box.Size = Vector2.new(w, h)
 						esp.Box.Position = Vector2.new(pos.X - w/2, pos.Y - h/2)
 						esp.Box.Color = col
-						esp.Box.Transparency = fadeFactor
+						esp.Box.Transparency = mainTrans
 						esp.BoxOutline.Size = Vector2.new(w, h)
 						esp.BoxOutline.Position = esp.Box.Position
-						esp.BoxOutline.Transparency = 0.5 * fadeFactor
+						esp.BoxOutline.Transparency = dimTrans
 					end
 					
 					esp.Tracer.Visible = ESP_SETTINGS.Tracers
@@ -414,7 +413,7 @@ RunService.RenderStepped:Connect(function()
 						esp.Tracer.From = Vector2.new(center.X, vp.Y)
 						esp.Tracer.To = Vector2.new(pos.X, pos.Y + h/2)
 						esp.Tracer.Color = col
-						esp.Tracer.Transparency = fadeFactor
+						esp.Tracer.Transparency = mainTrans
 					end
 					
 					esp.Name.Visible = ESP_SETTINGS.Names
@@ -422,7 +421,7 @@ RunService.RenderStepped:Connect(function()
 						esp.Name.Text = p.Name
 						esp.Name.Position = Vector2.new(pos.X, pos.Y - h/2 - 16)
 						esp.Name.Color = col
-						esp.Name.Transparency = fadeFactor
+						esp.Name.Transparency = mainTrans
 					end
 					
 					esp.Info.Visible = (ESP_SETTINGS.Distance or ESP_SETTINGS.HealthBar)
@@ -433,7 +432,7 @@ RunService.RenderStepped:Connect(function()
 						esp.Info.Text = txt
 						esp.Info.Position = Vector2.new(pos.X, pos.Y + h/2 + 2)
 						esp.Info.Color = col
-						esp.Info.Transparency = fadeFactor
+						esp.Info.Transparency = mainTrans
 					end
 					
 					esp.Bar.Visible = ESP_SETTINGS.HealthBar
@@ -446,11 +445,11 @@ RunService.RenderStepped:Connect(function()
 						local barH = h * hp
 						esp.BarOutline.From = Vector2.new(barX, barTop)
 						esp.BarOutline.To = Vector2.new(barX, barBot)
-						esp.BarOutline.Transparency = fadeFactor
+						esp.BarOutline.Transparency = mainTrans
 						esp.Bar.Color = Color3.fromHSV(hp * 0.3, 1, 1)
 						esp.Bar.From = Vector2.new(barX, barBot)
 						esp.Bar.To = Vector2.new(barX, barBot - barH)
-						esp.Bar.Transparency = fadeFactor
+						esp.Bar.Transparency = mainTrans
 					end
 					
 					local doSkel = ESP_SETTINGS.Skeleton
@@ -464,7 +463,7 @@ RunService.RenderStepped:Connect(function()
 							if hon then
 								esp.Head.Visible = true; esp.Head.Position = Vector2.new(hp.X, hp.Y)
 								esp.Head.Radius = math.clamp(400/pos.Z, 4, 15); esp.Head.Color = col
-								esp.Head.Transparency = fadeFactor
+								esp.Head.Transparency = mainTrans
 							end
 						end
 						local links = (hum.RigType == Enum.HumanoidRigType.R15) and R15_LINKS or R6_LINKS
@@ -478,7 +477,7 @@ RunService.RenderStepped:Connect(function()
 									local s2, o2 = Camera:WorldToViewportPoint(p2.Position)
 									if o1 and o2 then
 										l.Visible = true; l.From = Vector2.new(s1.X, s1.Y); l.To = Vector2.new(s2.X, s2.Y)
-										l.Color = col; l.Transparency = fadeFactor
+										l.Color = col; l.Transparency = mainTrans
 									end
 								end
 							end
