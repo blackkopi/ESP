@@ -258,7 +258,7 @@ TargInput.FocusLost:Connect(function(enter)
 	if enter and TargInput.Text ~= "" then table.insert(RainbowTargets, TargInput.Text:lower()); TargInput.Text = ""; SoundManager.Play("Open"); RefreshTargets() end
 end)
 ClearBtn.MouseButton1Click:Connect(function() table.clear(RainbowTargets); SoundManager.Play("Click"); RefreshTargets() end)
--- [[ KOPI'S ESP - FIXED DYNAMIC BOX UPDATE (PART 2) ]]
+-- [[ KOPI'S ESP - BIGGER BOX UPDATE (PART 2) ]]
 
 local ESPStore = {}
 local R15_LINKS = {
@@ -307,7 +307,7 @@ local function isRainbowTarget(name)
 end
 local function GetRainbow() return Color3.fromHSV((tick()*0.5)%1, 0.8, 1) end
 
--- [[ FIXED RENDER LOOP WITH DYNAMIC BOX ]]
+-- [[ FIXED RENDER LOOP WITH BIGGER DYNAMIC BOX ]]
 RunService.RenderStepped:Connect(function()
     local vp = Camera.ViewportSize
     local center = Vector2.new(vp.X/2, vp.Y/2)
@@ -349,16 +349,22 @@ RunService.RenderStepped:Connect(function()
                 else cham.Enabled = ESP_SETTINGS.Chams; cham.FillColor = col; cham.OutlineColor = Color3.new(1,1,1) end
                 
                 if onScreen then
-                    -- [[ DYNAMIC BOX MATH ]]
+                    -- [[ BOX SIZE ADJUSTMENTS ]]
                     local headObj = p.Character:FindFirstChild("Head")
                     local dist = (Camera.CFrame.Position - hrp.Position).Magnitude
-                    local topPos = (headObj and headObj.Position + Vector3.new(0, 0.5, 0)) or (hrp.Position + Vector3.new(0, 3, 0))
-                    local botPos = hrp.Position - Vector3.new(0, 3.5, 0)
+                    
+                    -- Changed: Added more vertical padding (1.5 above head, 4.5 below root)
+                    local topPos = (headObj and headObj.Position + Vector3.new(0, 1.5, 0)) or (hrp.Position + Vector3.new(0, 4, 0))
+                    local botPos = hrp.Position - Vector3.new(0, 4.5, 0)
+                    
                     local topScreen = Camera:WorldToViewportPoint(topPos)
                     local botScreen = Camera:WorldToViewportPoint(botPos)
                     
                     local h = math.abs(botScreen.Y - topScreen.Y)
-                    local w = h * 0.6
+                    
+                    -- Changed: Width ratio increased from 0.6 to 0.75 for a wider box
+                    local w = h * 0.75
+                    
                     local boxX = pos.X - w/2
                     local boxY = topScreen.Y
                     
