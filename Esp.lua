@@ -258,7 +258,7 @@ TargInput.FocusLost:Connect(function(enter)
 	if enter and TargInput.Text ~= "" then table.insert(RainbowTargets, TargInput.Text:lower()); TargInput.Text = ""; SoundManager.Play("Open"); RefreshTargets() end
 end)
 ClearBtn.MouseButton1Click:Connect(function() table.clear(RainbowTargets); SoundManager.Play("Click"); RefreshTargets() end)
--- [[ KOPI'S ESP - BIGGER BOX UPDATE (PART 2) ]]
+-- [[ KOPI'S ESP - WALLCHECK + FADE UPDATE (PART 2) ]]
 
 local ESPStore = {}
 local R15_LINKS = {
@@ -307,7 +307,20 @@ local function isRainbowTarget(name)
 end
 local function GetRainbow() return Color3.fromHSV((tick()*0.5)%1, 0.8, 1) end
 
--- [[ FIXED RENDER LOOP WITH BIGGER DYNAMIC BOX ]]
+-- [[ WALLCHECK FUNCTION ]]
+local function CheckVis(targetPart, ignoreList)
+	local origin = Camera.CFrame.Position
+	local dir = targetPart.Position - origin
+	local params = RaycastParams.new()
+	params.FilterDescendantsInstances = ignoreList
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.IgnoreWater = true
+	
+	local res = workspace:Raycast(origin, dir, params)
+	return res == nil -- True if visible (nothing hit)
+end
+
+-- [[ RENDER LOOP ]]
 RunService.RenderStepped:Connect(function()
     local vp = Camera.ViewportSize
     local center = Vector2.new(vp.X/2, vp.Y/2)
@@ -316,6 +329,7 @@ RunService.RenderStepped:Connect(function()
         if p ~= LocalPlayer and p.Character then
             local hum = p.Character:FindFirstChild("Humanoid")
             local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+            local head = p.Character:FindFirstChild("Head")
             
             if hum and hrp and hum.Health > 0 then
                 if ESP_SETTINGS.HideTeam and p.Team == LocalPlayer.Team then
@@ -344,26 +358,39 @@ RunService.RenderStepped:Connect(function()
                 local col = isRainbowTarget(p.Name) and GetRainbow() or p.TeamColor.Color
                 local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
                 
+                -- [[ WALLCHECK LOGIC ]]
+                local isVisible = true
+                if onScreen then
+                    -- Check visibility ignoring camera, local player, and target character
+                    isVisible = CheckVis(head or hrp, {Camera, LocalPlayer.Character, p.Character})
+                end
+                
+                -- Transparency Value: 1 = Visible, 0.3 = Behind Wall
+                local mainAlpha = isVisible and 1 or 0.3
+                local outlineAlpha = isVisible and 0.5 or 0.15
+                
                 local cham = p.Character:FindFirstChild("KopiHighlight")
                 if not cham then if ESP_SETTINGS.Chams then ApplyChams(p.Character) end
-                else cham.Enabled = ESP_SETTINGS.Chams; cham.FillColor = col; cham.OutlineColor = Color3.new(1,1,1) end
+                else 
+                	cham.Enabled = ESP_SETTINGS.Chams
+                	cham.FillColor = col
+                	cham.OutlineColor = Color3.new(1,1,1)
+                	-- Update Cham transparency based on wallcheck
+                	cham.FillTransparency = isVisible and 0.6 or 0.85
+                	cham.OutlineTransparency = isVisible and 0.2 or 0.8
+                end
                 
                 if onScreen then
-                    -- [[ BOX SIZE ADJUSTMENTS ]]
-                    local headObj = p.Character:FindFirstChild("Head")
+                    -- [[ BOX SIZING ]]
                     local dist = (Camera.CFrame.Position - hrp.Position).Magnitude
                     
-                    -- Changed: Added more vertical padding (1.5 above head, 4.5 below root)
-                    local topPos = (headObj and headObj.Position + Vector3.new(0, 1.5, 0)) or (hrp.Position + Vector3.new(0, 4, 0))
+                    local topPos = (head and head.Position + Vector3.new(0, 1.5, 0)) or (hrp.Position + Vector3.new(0, 4, 0))
                     local botPos = hrp.Position - Vector3.new(0, 4.5, 0)
-                    
                     local topScreen = Camera:WorldToViewportPoint(topPos)
                     local botScreen = Camera:WorldToViewportPoint(botPos)
                     
                     local h = math.abs(botScreen.Y - topScreen.Y)
-                    
-                    -- Changed: Width ratio increased from 0.6 to 0.75 for a wider box
-                    local w = h * 0.75
+                    local w = h * 0.75 -- Wider box
                     
                     local boxX = pos.X - w/2
                     local boxY = topScreen.Y
@@ -374,8 +401,11 @@ RunService.RenderStepped:Connect(function()
                         esp.Box.Size = Vector2.new(w, h)
                         esp.Box.Position = Vector2.new(boxX, boxY)
                         esp.Box.Color = col
+                        esp.Box.Transparency = mainAlpha
+                        
                         esp.BoxOutline.Size = Vector2.new(w, h)
                         esp.BoxOutline.Position = esp.Box.Position
+                        esp.BoxOutline.Transparency = outlineAlpha
                     end
                     
                     esp.Tracer.Visible = ESP_SETTINGS.Tracers
@@ -383,6 +413,7 @@ RunService.RenderStepped:Connect(function()
                         esp.Tracer.From = Vector2.new(center.X, vp.Y)
                         esp.Tracer.To = Vector2.new(pos.X, boxY + h)
                         esp.Tracer.Color = col
+                        esp.Tracer.Transparency = mainAlpha
                     end
                     
                     esp.Name.Visible = ESP_SETTINGS.Names
@@ -390,6 +421,7 @@ RunService.RenderStepped:Connect(function()
                         esp.Name.Text = p.Name
                         esp.Name.Position = Vector2.new(pos.X, boxY - 16)
                         esp.Name.Color = col
+                        esp.Name.Transparency = mainAlpha
                     end
                     
                     esp.Info.Visible = (ESP_SETTINGS.Distance or ESP_SETTINGS.HealthBar)
@@ -400,6 +432,7 @@ RunService.RenderStepped:Connect(function()
                         esp.Info.Text = txt
                         esp.Info.Position = Vector2.new(pos.X, boxY + h + 2)
                         esp.Info.Color = col 
+                        esp.Info.Transparency = mainAlpha
                     end
                     
                     esp.Bar.Visible = ESP_SETTINGS.HealthBar
@@ -410,19 +443,23 @@ RunService.RenderStepped:Connect(function()
                         local barTop = boxY; local barBot = boxY + h
                         local barH = h * hp
                         esp.BarOutline.From = Vector2.new(barX, barTop); esp.BarOutline.To = Vector2.new(barX, barBot)
+                        esp.BarOutline.Transparency = outlineAlpha
+                        
                         esp.Bar.Color = Color3.fromHSV(hp * 0.3, 1, 1)
                         esp.Bar.From = Vector2.new(barX, barBot); esp.Bar.To = Vector2.new(barX, barBot - barH)
+                        esp.Bar.Transparency = mainAlpha
                     end
                     
                     local doSkel = ESP_SETTINGS.Skeleton
                     for _, l in ipairs(esp.Skeleton) do l.Visible = false end
                     esp.Head.Visible = false
                     if doSkel then
-                        if headObj then
-                            local hp, hon = Camera:WorldToViewportPoint(headObj.Position)
+                        if head then
+                            local hp, hon = Camera:WorldToViewportPoint(head.Position)
                             if hon then
                                 esp.Head.Visible = true; esp.Head.Position = Vector2.new(hp.X, hp.Y)
                                 esp.Head.Radius = math.clamp(400/pos.Z, 4, 15); esp.Head.Color = col
+                                esp.Head.Transparency = mainAlpha
                             end
                         end
                         local links = (hum.RigType == Enum.HumanoidRigType.R15) and R15_LINKS or R6_LINKS
@@ -435,7 +472,8 @@ RunService.RenderStepped:Connect(function()
                                     local s1, o1 = Camera:WorldToViewportPoint(p1.Position)
                                     local s2, o2 = Camera:WorldToViewportPoint(p2.Position)
                                     if o1 and o2 then
-                                        l.Visible = true; l.From = Vector2.new(s1.X, s1.Y); l.To = Vector2.new(s2.X, s2.Y); l.Color = col
+                                        l.Visible = true; l.From = Vector2.new(s1.X, s1.Y); l.To = Vector2.new(s2.X, s2.Y)
+                                        l.Color = col; l.Transparency = mainAlpha
                                     end
                                 end
                             end
