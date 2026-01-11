@@ -1,4 +1,4 @@
--- [[ KOPI'S HUB - AIMBOT UPDATE (PART 1) ]]
+-- [[ KOPI'S HUB - AIMBOT UI FIX (PART 1) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -349,6 +349,18 @@ ResetBtn.MouseButton1Click:Connect(function()
 end)
 
 -- [[ BUILD AIMBOT ]]
+-- MOVED FOV INPUT TO TOP
+local FOVInput = Instance.new("TextBox", AimPage)
+FOVInput.Size = UDim2.new(1, 0, 0, 36); FOVInput.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+FOVInput.TextColor3 = THEME.Text; FOVInput.PlaceholderText = "FOV Radius: " .. ESP_SETTINGS.AimRadius; FOVInput.Font = Enum.Font.Gotham; FOVInput.TextSize = 14
+Instance.new("UICorner", FOVInput).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", FOVInput).Color = THEME.Stroke
+FOVInput.FocusLost:Connect(function(enter)
+	if enter then
+		local num = tonumber(FOVInput.Text)
+		if num then ESP_SETTINGS.AimRadius = num; FOVInput.Text = "FOV Radius: " .. num; SoundManager.Play("Open") end
+	end
+end)
+
 CreateToggle(AimPage, "Enable Aimbot", "Aimbot")
 CreateToggle(AimPage, "Team Check", "AimTeamCheck")
 CreateToggle(AimPage, "Show FOV", "AimFOV")
@@ -360,7 +372,6 @@ CreateButton(AimPage, "Target Part: Head", function(btn)
 end)
 
 CreateButton(AimPage, "Smoothness: Legit", function(btn)
-	-- Cycle: Legit(0.2) -> Fast(0.5) -> Instant(1)
 	if ESP_SETTINGS.AimSmooth == 0.2 then
 		ESP_SETTINGS.AimSmooth = 0.5; btn.Text = "Smoothness: Fast"
 	elseif ESP_SETTINGS.AimSmooth == 0.5 then
@@ -369,18 +380,7 @@ CreateButton(AimPage, "Smoothness: Legit", function(btn)
 		ESP_SETTINGS.AimSmooth = 0.2; btn.Text = "Smoothness: Legit"
 	end
 end)
-
-local FOVInput = Instance.new("TextBox", AimPage)
-FOVInput.Size = UDim2.new(1, 0, 0, 36); FOVInput.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-FOVInput.TextColor3 = THEME.Text; FOVInput.PlaceholderText = "FOV Radius: " .. ESP_SETTINGS.AimRadius; FOVInput.Font = Enum.Font.Gotham; FOVInput.TextSize = 14
-Instance.new("UICorner", FOVInput).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", FOVInput).Color = THEME.Stroke
-FOVInput.FocusLost:Connect(function(enter)
-	if enter then
-		local num = tonumber(FOVInput.Text)
-		if num then ESP_SETTINGS.AimRadius = num; FOVInput.Text = "FOV Radius: " .. num; SoundManager.Play("Open") end
-	end
-end)
--- [[ KOPI'S HUB - AIMBOT UPDATE (PART 2) ]]
+-- [[ KOPI'S HUB - AIMBOT UI FIX (PART 2) ]]
 
 -- [[ DRAWING OBJECTS ]]
 local FOVring = Drawing.new("Circle")
