@@ -399,7 +399,7 @@ CreateButton(AimPage, "Smoothness: Legit", function(btn)
 		ESP_SETTINGS.AimSmooth = 0.2; btn.Text = "Smoothness: Legit"
 	end
 end)
--- [[ KOPI'S HUB - FINAL FIX (PART 2) ]]
+-- [[ KOPI'S HUB - HEIGHT FIX (PART 2) ]]
 
 local ESPStore = {}
 
@@ -468,13 +468,13 @@ local function GetClosestPlayer()
 			-- Team Check
 			if ESP_SETTINGS.AimTeamCheck and p.Team == LocalPlayer.Team then continue end
 			
-			-- [[ FIX: INTELLIGENT PART FINDER (R15 vs R6) ]]
+			-- [[ INTELLIGENT PART FINDER ]]
 			local part = p.Character:FindFirstChild(ESP_SETTINGS.AimPart)
 			if not part and ESP_SETTINGS.AimPart == "Torso" then
 				-- If "Torso" missing, check for "UpperTorso" (R15)
 				part = p.Character:FindFirstChild("UpperTorso")
 			end
-			-- Fallback to RootPart if standard parts are missing
+			-- Fallback
 			if not part then part = p.Character:FindFirstChild("HumanoidRootPart") end
 			
 			local hum = p.Character:FindFirstChild("Humanoid")
@@ -524,10 +524,18 @@ RunService.RenderStepped:Connect(function()
 	if ESP_SETTINGS.Aimbot then
 		local targetPart = GetClosestPlayer()
 		if targetPart then
-			-- Visual feedback: Turn circle Red if locked, Purple if searching
+			-- Visual feedback
 			if FOV_Frame and FOV_Stroke then FOV_Stroke.Color = THEME.Red end
 			
-			local lookAt = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+			-- [[ HEIGHT OFFSETS APPLIED HERE ]]
+			local finalPos = targetPart.Position
+			if targetPart.Name == "Head" then
+				finalPos = finalPos + Vector3.new(0, 0.3, 0) -- Lift Head slightly (Neck -> Face)
+			elseif targetPart.Name == "UpperTorso" or targetPart.Name == "Torso" or targetPart.Name == "HumanoidRootPart" then
+				finalPos = finalPos + Vector3.new(0, 0.6, 0) -- Lift Torso significantly (Hips -> Chest)
+			end
+			
+			local lookAt = CFrame.new(Camera.CFrame.Position, finalPos)
 			Camera.CFrame = Camera.CFrame:Lerp(lookAt, ESP_SETTINGS.AimSmooth)
 		else
 			if FOV_Frame and FOV_Stroke then FOV_Stroke.Color = THEME.Purple end
