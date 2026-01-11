@@ -197,7 +197,7 @@ TargPage.Size = UDim2.new(1,0,1,0); TargPage.BackgroundTransparency = 1; TargPag
 
 CreateTabBtn("VISUALS", 0, function() CreateTween(TabHighlight, {Position = UDim2.new(0, 2, 0, 2)}); TargPage.Visible = false; VisPage.Visible = true end)
 CreateTabBtn("TARGETS", 0.5, function() CreateTween(TabHighlight, {Position = UDim2.new(0.5, 2, 0, 2)}); VisPage.Visible = false; TargPage.Visible = true end)
--- [[ KOPI'S ESP - GHOST MODE UPDATE (PART 2) ]]
+-- [[ KOPI'S ESP - FINAL FIX (PART 2) ]]
 -- Paste this directly under Part 1
 
 local function CreateToggle(text, configKey)
@@ -228,7 +228,7 @@ CreateToggle("ESP Boxes", "Box"); CreateToggle("Skeleton", "Skeleton")
 CreateToggle("Chams", "Chams"); CreateToggle("Tracers", "Tracers")
 CreateToggle("Names", "Names"); CreateToggle("Distance", "Distance")
 CreateToggle("Health Bar + HP", "HealthBar"); CreateToggle("Hide Team", "HideTeam")
-CreateToggle("Wall Check (Ghost)", "WallCheck") -- [NEW] Ghost Toggle
+CreateToggle("Wall Check (Ghost)", "WallCheck")
 
 VisLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() VisPage.CanvasSize = UDim2.fromOffset(0, VisLayout.AbsoluteContentSize.Y + 10) end)
 
@@ -326,7 +326,6 @@ end
 
 local function GetRainbow() return Color3.fromHSV((tick()*0.5)%1, 0.8, 1) end
 
--- [NEW] Raycast Parameters for WallCheck
 local RayParams = RaycastParams.new()
 RayParams.FilterType = Enum.RaycastFilterType.Exclude
 RayParams.IgnoreWater = true
@@ -367,53 +366,53 @@ RunService.RenderStepped:Connect(function()
 				local col = isRainbowTarget(p.Name) and GetRainbow() or p.TeamColor.Color
 				local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
 				
-				-- [NEW] Ghost Mode Calculation
+				-- WallCheck Logic
 				local isVisible = true
-				if ESP_SETTINGS.WallCheck then
+				if ESP_SETTINGS.WallCheck and LocalPlayer.Character then
 					RayParams.FilterDescendantsInstances = {LocalPlayer.Character, p.Character, Camera}
 					local result = workspace:Raycast(Camera.CFrame.Position, hrp.Position - Camera.CFrame.Position, RayParams)
-					if result then isVisible = false end -- Hit wall
+					if result then isVisible = false end
 				end
 
+				-- Only apply transparency if actually ghosting (prevents property spam glitches)
 				local alpha = 1
-				if ESP_SETTINGS.WallCheck and not isVisible then
-					alpha = 0.35 -- Ghost Opacity (Lower = Fainter)
-				end
+				if ESP_SETTINGS.WallCheck and not isVisible then alpha = 0.35 end
 
-				-- Only Draw if on screen
 				if onScreen then
 					local dist = (Camera.CFrame.Position - hrp.Position).Magnitude
 					local size = math.clamp(2000/pos.Z, 25, 300)
 					local w, h = size, size*1.5
 					
-					-- [[ UPDATE CHAMS (Highlight) ]]
+					-- Chams
 					local cham = p.Character:FindFirstChild("KopiHighlight")
 					if cham then
 						cham.Enabled = ESP_SETTINGS.Chams
 						cham.FillColor = col
-						if ESP_SETTINGS.WallCheck and not isVisible then
-							-- Ghost Chams settings
-							cham.FillTransparency = 0.85
-							cham.OutlineTransparency = 1
-							cham.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+						if alpha < 1 then
+							cham.FillTransparency = 0.85; cham.OutlineTransparency = 1; cham.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 						else
-							-- Normal settings
-							cham.FillTransparency = 0.6
-							cham.OutlineTransparency = 0.2
-							cham.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+							cham.FillTransparency = 0.6; cham.OutlineTransparency = 0.2; cham.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 						end
 					end
 					
+					-- Boxes (Logic Restored)
 					esp.BoxOutline.Visible = ESP_SETTINGS.Box
 					esp.Box.Visible = ESP_SETTINGS.Box
 					if ESP_SETTINGS.Box then
 						esp.Box.Size = Vector2.new(w, h)
 						esp.Box.Position = Vector2.new(pos.X - w/2, pos.Y - h/2)
 						esp.Box.Color = col
-						esp.Box.Transparency = alpha
 						esp.BoxOutline.Size = Vector2.new(w, h)
 						esp.BoxOutline.Position = esp.Box.Position
-						esp.BoxOutline.Transparency = 0.5 * alpha
+						
+						-- Only touch Transparency if needed to avoid glitches
+						if alpha < 1 then
+							esp.Box.Transparency = alpha
+							esp.BoxOutline.Transparency = 0.5 * alpha
+						else
+							esp.Box.Transparency = 1
+							esp.BoxOutline.Transparency = 0.5
+						end
 					end
 					
 					esp.Tracer.Visible = ESP_SETTINGS.Tracers
@@ -492,7 +491,6 @@ RunService.RenderStepped:Connect(function()
 						end
 					end
 				else
-					-- Off-Screen logic (Just hide, don't destroy)
 					local cham = p.Character:FindFirstChild("KopiHighlight")
 					if cham then cham.Enabled = false end
 					
