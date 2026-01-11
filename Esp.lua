@@ -1,4 +1,4 @@
--- [[ KOPI'S ESP - HITBOX UPDATE (PART 1) ]]
+-- [[ KOPI'S ESP - HITBOX COLOR UPDATE (PART 1) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -19,8 +19,10 @@ getgenv().ESP_SETTINGS = {
 	Distance = true,
 	HealthBar = true,
 	HideTeam = false,
-	Hitbox = false,      -- Master toggle for hitbox
-	HitboxSize = 20      -- Default size
+	-- Hitbox Settings
+	Hitbox = false,      
+	HitboxSize = 20,
+	UniversalColor = true -- Toggle for Blue vs Team/Rainbow
 }
 getgenv().RainbowTargets = {}
 
@@ -210,7 +212,7 @@ CreateTabBtn("TARGETS", 0.333, TargPage)
 CreateTabBtn("HITBOX", 0.666, HitboxPage)
 
 -- [[ VISUALS TAB ]]
-local function CreateToggle(parent, text, configKey)
+local function CreateToggle(parent, text, configKey, callback)
 	local Btn = Instance.new("TextButton", parent)
 	Btn.Size = UDim2.new(1, 0, 0, 36); Btn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
 	Btn.AutoButtonColor = false; Btn.Text = ""; Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 8)
@@ -231,6 +233,7 @@ local function CreateToggle(parent, text, configKey)
 		ESP_SETTINGS[configKey] = not ESP_SETTINGS[configKey]; SoundManager.Play("Toggle")
 		if ESP_SETTINGS[configKey] then CreateTween(Sw, {BackgroundColor3 = THEME.Accent}); CreateTween(Circ, {Position = UDim2.new(1, -18, 0.5, -8)})
 		else CreateTween(Sw, {BackgroundColor3 = Color3.fromRGB(50,50,60)}); CreateTween(Circ, {Position = UDim2.new(0, 2, 0.5, -8)}) end
+		if callback then callback(ESP_SETTINGS[configKey]) end
 	end)
 	return Btn -- Return button in case we need to update it
 end
@@ -272,10 +275,32 @@ TargInput.FocusLost:Connect(function(enter)
 	if enter and TargInput.Text ~= "" then table.insert(RainbowTargets, TargInput.Text:lower()); TargInput.Text = ""; SoundManager.Play("Open"); RefreshTargets() end
 end)
 ClearBtn.MouseButton1Click:Connect(function() table.clear(RainbowTargets); SoundManager.Play("Click"); RefreshTargets() end)
--- [[ KOPI'S ESP - HITBOX UPDATE (PART 2) ]]
+-- [[ KOPI'S ESP - HITBOX COLOR UPDATE (PART 2) ]]
+
+local function ResetHitboxLogic()
+	-- Reset physics
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= LocalPlayer and p.Character then
+			local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				hrp.Size = Vector3.new(2, 2, 1) -- Roblox Default
+				hrp.Transparency = 1
+				hrp.CanCollide = true
+				hrp.Color = Color3.new(0.63, 0.63, 0.63) -- Default Gray
+			end
+		end
+	end
+end
 
 -- [[ HITBOX TAB UI CONTINUED ]]
-local HitToggleBtn = CreateToggle(HitboxPage, "Enable Hitbox", "Hitbox")
+local HitToggleBtn = CreateToggle(HitboxPage, "Enable Hitbox", "Hitbox", function(state)
+	if state == false then
+		-- IMMEDIATE RESET WHEN TOGGLED OFF
+		ResetHitboxLogic()
+	end
+end)
+
+CreateToggle(HitboxPage, "Universal Color", "UniversalColor")
 
 local CustomLabel = Instance.new("TextLabel", HitboxPage)
 CustomLabel.Size = UDim2.new(1, 0, 0, 20)
@@ -348,32 +373,16 @@ Instance.new("UICorner", ResetBtn).CornerRadius = UDim.new(0, 8)
 local RStroke = Instance.new("UIStroke", ResetBtn)
 RStroke.Color = THEME.Red; RStroke.Thickness = 1
 
-local function ResetHitboxLogic()
-	-- Reset loop toggle
+ResetBtn.MouseButton1Click:Connect(function()
+	SoundManager.Play("Click")
 	ESP_SETTINGS.Hitbox = false
-	-- Visually update toggle button
+	-- Update toggle visual
 	local sw = HitToggleBtn:FindFirstChild("Frame")
 	if sw then 
 		CreateTween(sw, {BackgroundColor3 = Color3.fromRGB(50,50,60)})
 		local c = sw:FindFirstChild("Frame")
 		if c then CreateTween(c, {Position = UDim2.new(0, 2, 0.5, -8)}) end
 	end
-	
-	-- Reset physics
-	for _, p in ipairs(Players:GetPlayers()) do
-		if p ~= LocalPlayer and p.Character then
-			local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-			if hrp then
-				hrp.Size = Vector3.new(2, 2, 1) -- Roblox Default
-				hrp.Transparency = 1
-				hrp.CanCollide = true
-			end
-		end
-	end
-end
-
-ResetBtn.MouseButton1Click:Connect(function()
-	SoundManager.Play("Click")
 	ResetHitboxLogic()
 end)
 
@@ -455,9 +464,21 @@ RunService.RenderStepped:Connect(function()
 						pcall(function()
 							hrp.Size = Vector3.new(ESP_SETTINGS.HitboxSize, ESP_SETTINGS.HitboxSize, ESP_SETTINGS.HitboxSize)
 							hrp.Transparency = 0.7
-							hrp.BrickColor = BrickColor.new("Really blue")
-							hrp.Material = Enum.Material.Neon
 							hrp.CanCollide = false
+							
+							-- Color Logic
+							if ESP_SETTINGS.UniversalColor then
+								hrp.Color = Color3.fromRGB(0, 0, 255) -- Really Blue
+								hrp.Material = Enum.Material.Neon
+							else
+								if isRainbowTarget(p.Name) then
+									hrp.Color = GetRainbow()
+									hrp.Material = Enum.Material.Neon
+								else
+									hrp.Color = p.TeamColor.Color
+									hrp.Material = Enum.Material.ForceField -- Looks cool for team colors
+								end
+							end
 						end)
 					end
 				end
