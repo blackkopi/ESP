@@ -1,4 +1,4 @@
--- [[ KOPI'S ESP - HITBOX COLOR UPDATE (PART 1) ]]
+-- [[ KOPI'S HUB - AIMBOT UPDATE (PART 1) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -11,6 +11,7 @@ local Camera = workspace.CurrentCamera
 
 -- ================= CONFIG =================
 getgenv().ESP_SETTINGS = {
+	-- Visuals
 	Box = true,
 	Tracers = true,
 	Skeleton = false,
@@ -19,10 +20,18 @@ getgenv().ESP_SETTINGS = {
 	Distance = true,
 	HealthBar = true,
 	HideTeam = false,
-	-- Hitbox Settings
+	-- Hitbox
 	Hitbox = false,      
 	HitboxSize = 20,
-	UniversalColor = true -- Toggle for Blue vs Team/Rainbow
+	UniversalColor = true,
+	-- Aimbot
+	Aimbot = false,
+	AimPart = "Head",       -- "Head" or "Torso"
+	AimTeamCheck = true,    -- Separate team check
+	AimFOV = true,          -- Draw Circle
+	AimRadius = 100,        -- Circle Size
+	AimSmartDist = false,   -- Priority: Distance vs Crosshair
+	AimSmooth = 0.2         -- 1 = Instant, 0.1 = Very Smooth
 }
 getgenv().RainbowTargets = {}
 
@@ -35,7 +44,8 @@ local THEME = {
 	TextDim = Color3.fromRGB(160, 160, 175),
 	Stroke = Color3.fromRGB(50, 50, 70),
 	Red = Color3.fromRGB(255, 80, 80),
-	Green = Color3.fromRGB(80, 255, 120)
+	Green = Color3.fromRGB(80, 255, 120),
+	Purple = Color3.fromRGB(180, 80, 255)
 }
 
 -- ================= SOUNDS =================
@@ -77,7 +87,7 @@ ScreenGui.ResetOnSpawn = false
 
 -- [[ MAIN FRAME ]]
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.fromOffset(280, 380)
+MainFrame.Size = UDim2.fromOffset(340, 380) -- Wider for 4 tabs
 MainFrame.Position = LoadPosition()
 MainFrame.BackgroundColor3 = THEME.Bg
 MainFrame.BorderSizePixel = 0
@@ -174,7 +184,7 @@ TabContainer.Position = UDim2.new(0, 10, 0, 50); TabContainer.Size = UDim2.new(1
 TabContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 Instance.new("UICorner", TabContainer).CornerRadius = UDim.new(0, 8)
 local TabHighlight = Instance.new("Frame", TabContainer)
-TabHighlight.Size = UDim2.new(0.333, -4, 1, -4); TabHighlight.Position = UDim2.new(0, 2, 0, 2)
+TabHighlight.Size = UDim2.new(0.25, -4, 1, -4); TabHighlight.Position = UDim2.new(0, 2, 0, 2)
 TabHighlight.BackgroundColor3 = THEME.Accent; Instance.new("UICorner", TabHighlight).CornerRadius = UDim.new(0, 6)
 
 local PageContainer = Instance.new("Frame", MainFrame)
@@ -193,25 +203,30 @@ local HitboxPage = Instance.new("Frame", PageContainer)
 HitboxPage.Size = UDim2.new(1,0,1,0); HitboxPage.BackgroundTransparency = 1; HitboxPage.Visible = false
 local HitboxLayout = Instance.new("UIListLayout", HitboxPage); HitboxLayout.Padding = UDim.new(0, 8)
 
+local AimPage = Instance.new("Frame", PageContainer)
+AimPage.Size = UDim2.new(1,0,1,0); AimPage.BackgroundTransparency = 1; AimPage.Visible = false
+local AimLayout = Instance.new("UIListLayout", AimPage); AimLayout.Padding = UDim.new(0, 8)
+
 -- Function to switch tabs
 local function CreateTabBtn(text, posScale, pageToShow)
 	local b = Instance.new("TextButton", TabContainer)
-	b.Size = UDim2.new(0.333, 0, 1, 0); b.Position = UDim2.new(posScale, 0, 0, 0)
+	b.Size = UDim2.new(0.25, 0, 1, 0); b.Position = UDim2.new(posScale, 0, 0, 0)
 	b.BackgroundTransparency = 1; b.Text = text; b.Font = Enum.Font.GothamBold
-	b.TextSize = 11; b.TextColor3 = THEME.Text; b.ZIndex = 2
+	b.TextSize = 9; b.TextColor3 = THEME.Text; b.ZIndex = 2
 	b.MouseButton1Click:Connect(function() 
 		SoundManager.Play("Click")
 		CreateTween(TabHighlight, {Position = UDim2.new(posScale, 2, 0, 2)})
-		VisPage.Visible = false; TargPage.Visible = false; HitboxPage.Visible = false
+		VisPage.Visible = false; TargPage.Visible = false; HitboxPage.Visible = false; AimPage.Visible = false
 		pageToShow.Visible = true
 	end)
 end
 
 CreateTabBtn("VISUALS", 0, VisPage)
-CreateTabBtn("TARGETS", 0.333, TargPage)
-CreateTabBtn("HITBOX", 0.666, HitboxPage)
+CreateTabBtn("TARGETS", 0.25, TargPage)
+CreateTabBtn("HITBOX", 0.5, HitboxPage)
+CreateTabBtn("AIMBOT", 0.75, AimPage)
 
--- [[ VISUALS TAB ]]
+-- [[ UI COMPONENT FACTORY ]]
 local function CreateToggle(parent, text, configKey, callback)
 	local Btn = Instance.new("TextButton", parent)
 	Btn.Size = UDim2.new(1, 0, 0, 36); Btn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
@@ -235,9 +250,18 @@ local function CreateToggle(parent, text, configKey, callback)
 		else CreateTween(Sw, {BackgroundColor3 = Color3.fromRGB(50,50,60)}); CreateTween(Circ, {Position = UDim2.new(0, 2, 0.5, -8)}) end
 		if callback then callback(ESP_SETTINGS[configKey]) end
 	end)
-	return Btn -- Return button in case we need to update it
+	return Btn 
 end
 
+local function CreateButton(parent, text, cb)
+	local b = Instance.new("TextButton", parent)
+	b.Size = UDim2.new(1,0,0,32); b.BackgroundColor3 = Color3.fromRGB(40,40,50)
+	b.Text = text; b.TextColor3 = THEME.Text; b.Font = Enum.Font.GothamBold; b.TextSize = 12
+	Instance.new("UICorner", b).CornerRadius = UDim.new(0,6)
+	b.MouseButton1Click:Connect(function() SoundManager.Play("Click"); cb(b) end)
+end
+
+-- [[ BUILD VISUALS ]]
 CreateToggle(VisPage, "ESP Boxes", "Box")
 CreateToggle(VisPage, "Skeleton", "Skeleton")
 CreateToggle(VisPage, "Chams", "Chams")
@@ -248,7 +272,7 @@ CreateToggle(VisPage, "Health Bar + HP", "HealthBar")
 CreateToggle(VisPage, "Hide Team", "HideTeam")
 VisLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() VisPage.CanvasSize = UDim2.fromOffset(0, VisLayout.AbsoluteContentSize.Y + 10) end)
 
--- [[ TARGETS TAB ]]
+-- [[ BUILD TARGETS ]]
 local TargInput = Instance.new("TextBox", TargPage)
 TargInput.Size = UDim2.new(1, 0, 0, 36); TargInput.BackgroundColor3 = Color3.fromRGB(25,25,30)
 TargInput.TextColor3 = Color3.new(1,1,1); TargInput.PlaceholderText = "Add Target..."; TargInput.Font = Enum.Font.Gotham; TargInput.TextSize = 14
@@ -275,119 +299,100 @@ TargInput.FocusLost:Connect(function(enter)
 	if enter and TargInput.Text ~= "" then table.insert(RainbowTargets, TargInput.Text:lower()); TargInput.Text = ""; SoundManager.Play("Open"); RefreshTargets() end
 end)
 ClearBtn.MouseButton1Click:Connect(function() table.clear(RainbowTargets); SoundManager.Play("Click"); RefreshTargets() end)
--- [[ KOPI'S ESP - HITBOX COLOR UPDATE (PART 2) ]]
 
+-- [[ BUILD HITBOX ]]
 local function ResetHitboxLogic()
-	-- Reset physics
 	for _, p in ipairs(Players:GetPlayers()) do
 		if p ~= LocalPlayer and p.Character then
 			local hrp = p.Character:FindFirstChild("HumanoidRootPart")
 			if hrp then
-				hrp.Size = Vector3.new(2, 2, 1) -- Roblox Default
-				hrp.Transparency = 1
-				hrp.CanCollide = true
-				hrp.Color = Color3.new(0.63, 0.63, 0.63) -- Default Gray
+				hrp.Size = Vector3.new(2, 2, 1); hrp.Transparency = 1; hrp.CanCollide = true; hrp.Color = Color3.new(0.63, 0.63, 0.63)
 			end
 		end
 	end
 end
 
--- [[ HITBOX TAB UI CONTINUED ]]
-local HitToggleBtn = CreateToggle(HitboxPage, "Enable Hitbox", "Hitbox", function(state)
-	if state == false then
-		-- IMMEDIATE RESET WHEN TOGGLED OFF
-		ResetHitboxLogic()
-	end
-end)
-
+local HitToggleBtn = CreateToggle(HitboxPage, "Enable Hitbox", "Hitbox", function(state) if state == false then ResetHitboxLogic() end end)
 CreateToggle(HitboxPage, "Universal Color", "UniversalColor")
 
-local CustomLabel = Instance.new("TextLabel", HitboxPage)
-CustomLabel.Size = UDim2.new(1, 0, 0, 20)
-CustomLabel.BackgroundTransparency = 1
-CustomLabel.Text = "Enter custom size:"
-CustomLabel.Font = Enum.Font.GothamBold
-CustomLabel.TextColor3 = THEME.TextDim
-CustomLabel.TextSize = 12
-CustomLabel.TextXAlignment = Enum.TextXAlignment.Left
-
 local CustomInput = Instance.new("TextBox", HitboxPage)
-CustomInput.Size = UDim2.new(1, 0, 0, 36)
-CustomInput.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-CustomInput.TextColor3 = THEME.Text
-CustomInput.PlaceholderText = tostring(ESP_SETTINGS.HitboxSize)
-CustomInput.Font = Enum.Font.Gotham
-CustomInput.TextSize = 14
-Instance.new("UICorner", CustomInput).CornerRadius = UDim.new(0, 8)
-Instance.new("UIStroke", CustomInput).Color = THEME.Stroke
-
+CustomInput.Size = UDim2.new(1, 0, 0, 36); CustomInput.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+CustomInput.TextColor3 = THEME.Text; CustomInput.PlaceholderText = tostring(ESP_SETTINGS.HitboxSize); CustomInput.Font = Enum.Font.Gotham; CustomInput.TextSize = 14
+Instance.new("UICorner", CustomInput).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", CustomInput).Color = THEME.Stroke
 CustomInput.FocusLost:Connect(function(enter)
 	if enter then
 		local num = tonumber(CustomInput.Text)
-		if num then
-			ESP_SETTINGS.HitboxSize = num
-			CustomInput.Text = "Size: " .. num
-			SoundManager.Play("Open")
-		else
-			CustomInput.Text = ""
-			CustomInput.PlaceholderText = "Invalid Number"
-		end
+		if num then ESP_SETTINGS.HitboxSize = num; CustomInput.Text = "Size: " .. num; SoundManager.Play("Open")
+		else CustomInput.Text = ""; CustomInput.PlaceholderText = "Invalid Number" end
 	end
 end)
 
 local PresetsFrame = Instance.new("Frame", HitboxPage)
-PresetsFrame.Size = UDim2.new(1, 0, 0, 30)
-PresetsFrame.BackgroundTransparency = 1
-local PresetsLayout = Instance.new("UIListLayout", PresetsFrame)
-PresetsLayout.FillDirection = Enum.FillDirection.Horizontal
-PresetsLayout.Padding = UDim.new(0, 8)
-
+PresetsFrame.Size = UDim2.new(1, 0, 0, 30); PresetsFrame.BackgroundTransparency = 1
+local PresetsLayout = Instance.new("UIListLayout", PresetsFrame); PresetsLayout.FillDirection = Enum.FillDirection.Horizontal; PresetsLayout.Padding = UDim.new(0, 8)
 local function CreatePreset(text, sizeVal)
-	local b = Instance.new("TextButton", PresetsFrame)
-	b.Size = UDim2.new(0.31, 0, 1, 0)
-	b.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-	b.Text = text
-	b.Font = Enum.Font.GothamBold
-	b.TextColor3 = THEME.Text
-	b.TextSize = 12
+	local b = Instance.new("TextButton", PresetsFrame); b.Size = UDim2.new(0.31, 0, 1, 0); b.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+	b.Text = text; b.Font = Enum.Font.GothamBold; b.TextColor3 = THEME.Text; b.TextSize = 12
 	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
-	b.MouseButton1Click:Connect(function()
-		ESP_SETTINGS.HitboxSize = sizeVal
-		CustomInput.Text = "Size: " .. sizeVal
-		SoundManager.Play("Click")
-	end)
+	b.MouseButton1Click:Connect(function() ESP_SETTINGS.HitboxSize = sizeVal; CustomInput.Text = "Size: " .. sizeVal; SoundManager.Play("Click") end)
 end
-
-CreatePreset("Small (10)", 10)
-CreatePreset("Normal (20)", 20)
-CreatePreset("Big (50)", 50)
+CreatePreset("Small (10)", 10); CreatePreset("Normal (20)", 20); CreatePreset("Big (50)", 50)
 
 local ResetBtn = Instance.new("TextButton", HitboxPage)
-ResetBtn.Size = UDim2.new(1, 0, 0, 32)
-ResetBtn.BackgroundColor3 = Color3.fromRGB(40, 20, 20)
-ResetBtn.Text = "RESET DEFAULT"
-ResetBtn.TextColor3 = THEME.Red
-ResetBtn.Font = Enum.Font.GothamBold
-ResetBtn.TextSize = 13
-Instance.new("UICorner", ResetBtn).CornerRadius = UDim.new(0, 8)
-local RStroke = Instance.new("UIStroke", ResetBtn)
-RStroke.Color = THEME.Red; RStroke.Thickness = 1
-
+ResetBtn.Size = UDim2.new(1, 0, 0, 32); ResetBtn.BackgroundColor3 = Color3.fromRGB(40, 20, 20)
+ResetBtn.Text = "RESET DEFAULT"; ResetBtn.TextColor3 = THEME.Red; ResetBtn.Font = Enum.Font.GothamBold; ResetBtn.TextSize = 13
+Instance.new("UICorner", ResetBtn).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", ResetBtn).Color = THEME.Red; Instance.new("UIStroke", ResetBtn).Thickness = 1
 ResetBtn.MouseButton1Click:Connect(function()
-	SoundManager.Play("Click")
-	ESP_SETTINGS.Hitbox = false
-	-- Update toggle visual
-	local sw = HitToggleBtn:FindFirstChild("Frame")
-	if sw then 
-		CreateTween(sw, {BackgroundColor3 = Color3.fromRGB(50,50,60)})
-		local c = sw:FindFirstChild("Frame")
-		if c then CreateTween(c, {Position = UDim2.new(0, 2, 0.5, -8)}) end
-	end
+	SoundManager.Play("Click"); ESP_SETTINGS.Hitbox = false
+	local sw = HitToggleBtn:FindFirstChild("Frame"); if sw then CreateTween(sw, {BackgroundColor3 = Color3.fromRGB(50,50,60)}); local c = sw:FindFirstChild("Frame"); if c then CreateTween(c, {Position = UDim2.new(0, 2, 0.5, -8)}) end end
 	ResetHitboxLogic()
 end)
 
--- [[ ESP & HITBOX LOGIC ]]
+-- [[ BUILD AIMBOT ]]
+CreateToggle(AimPage, "Enable Aimbot", "Aimbot")
+CreateToggle(AimPage, "Team Check", "AimTeamCheck")
+CreateToggle(AimPage, "Show FOV", "AimFOV")
+CreateToggle(AimPage, "Prioritize Distance", "AimSmartDist")
 
+CreateButton(AimPage, "Target Part: Head", function(btn) 
+	if ESP_SETTINGS.AimPart == "Head" then ESP_SETTINGS.AimPart = "Torso" else ESP_SETTINGS.AimPart = "Head" end
+	btn.Text = "Target Part: " .. ESP_SETTINGS.AimPart
+end)
+
+CreateButton(AimPage, "Smoothness: Legit", function(btn)
+	-- Cycle: Legit(0.2) -> Fast(0.5) -> Instant(1)
+	if ESP_SETTINGS.AimSmooth == 0.2 then
+		ESP_SETTINGS.AimSmooth = 0.5; btn.Text = "Smoothness: Fast"
+	elseif ESP_SETTINGS.AimSmooth == 0.5 then
+		ESP_SETTINGS.AimSmooth = 1; btn.Text = "Smoothness: Instant (Lock)"
+	else
+		ESP_SETTINGS.AimSmooth = 0.2; btn.Text = "Smoothness: Legit"
+	end
+end)
+
+local FOVInput = Instance.new("TextBox", AimPage)
+FOVInput.Size = UDim2.new(1, 0, 0, 36); FOVInput.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+FOVInput.TextColor3 = THEME.Text; FOVInput.PlaceholderText = "FOV Radius: " .. ESP_SETTINGS.AimRadius; FOVInput.Font = Enum.Font.Gotham; FOVInput.TextSize = 14
+Instance.new("UICorner", FOVInput).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", FOVInput).Color = THEME.Stroke
+FOVInput.FocusLost:Connect(function(enter)
+	if enter then
+		local num = tonumber(FOVInput.Text)
+		if num then ESP_SETTINGS.AimRadius = num; FOVInput.Text = "FOV Radius: " .. num; SoundManager.Play("Open") end
+	end
+end)
+-- [[ KOPI'S HUB - AIMBOT UPDATE (PART 2) ]]
+
+-- [[ DRAWING OBJECTS ]]
+local FOVring = Drawing.new("Circle")
+FOVring.Visible = false
+FOVring.Thickness = 2
+FOVring.Color = THEME.Purple
+FOVring.Filled = false
+FOVring.Radius = ESP_SETTINGS.AimRadius
+FOVring.Transparency = 1
+FOVring.NumSides = 64
+
+-- [[ HELPERS ]]
 local ESPStore = {}
 
 local R15_LINKS = {
@@ -444,10 +449,70 @@ end
 
 local function GetRainbow() return Color3.fromHSV((tick()*0.5)%1, 0.8, 1) end
 
+-- [[ AIMBOT LOGIC HELPERS ]]
+local function GetClosestPlayer()
+	local closest = nil
+	local minDist = math.huge
+	local center = Camera.ViewportSize / 2
+	
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= LocalPlayer and p.Character then
+			-- Team Check
+			if ESP_SETTINGS.AimTeamCheck and p.Team == LocalPlayer.Team then continue end
+			
+			local part = p.Character:FindFirstChild(ESP_SETTINGS.AimPart)
+			local hum = p.Character:FindFirstChild("Humanoid")
+			
+			if part and hum and hum.Health > 0 then
+				local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+				if onScreen then
+					local distToMouse = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+					
+					-- Check FOV
+					if distToMouse <= ESP_SETTINGS.AimRadius then
+						-- DISTANCE SORTING LOGIC
+						if ESP_SETTINGS.AimSmartDist then
+							-- Sort by physical distance
+							local dist3D = (LocalPlayer.Character.Head.Position - part.Position).Magnitude
+							if dist3D < minDist then
+								minDist = dist3D
+								closest = part
+							end
+						else
+							-- Sort by crosshair distance
+							if distToMouse < minDist then
+								minDist = distToMouse
+								closest = part
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	return closest
+end
+
+-- [[ MAIN LOOP ]]
 RunService.RenderStepped:Connect(function()
 	local vp = Camera.ViewportSize
 	local center = Vector2.new(vp.X/2, vp.Y/2)
+	
+	-- Update FOV Ring
+	FOVring.Radius = ESP_SETTINGS.AimRadius
+	FOVring.Position = center
+	FOVring.Visible = ESP_SETTINGS.Aimbot and ESP_SETTINGS.AimFOV
 
+	-- Aimbot Execution
+	if ESP_SETTINGS.Aimbot then
+		local targetPart = GetClosestPlayer()
+		if targetPart then
+			local lookAt = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+			Camera.CFrame = Camera.CFrame:Lerp(lookAt, ESP_SETTINGS.AimSmooth)
+		end
+	end
+
+	-- ESP Execution
 	for _, p in ipairs(Players:GetPlayers()) do
 		if p ~= LocalPlayer and p.Character then
 			local hum = p.Character:FindFirstChild("Humanoid")
@@ -455,10 +520,9 @@ RunService.RenderStepped:Connect(function()
 			
 			if hum and hrp and hum.Health > 0 then
 				
-				-- Team Check Shared Logic
 				local isTeammate = (p.Team == LocalPlayer.Team)
 				
-				-- [[ HITBOX EXPANDER LOGIC ]]
+				-- [[ HITBOX EXPANDER ]]
 				if ESP_SETTINGS.Hitbox then
 					if not (ESP_SETTINGS.HideTeam and isTeammate) then
 						pcall(function()
@@ -466,24 +530,21 @@ RunService.RenderStepped:Connect(function()
 							hrp.Transparency = 0.7
 							hrp.CanCollide = false
 							
-							-- Color Logic
 							if ESP_SETTINGS.UniversalColor then
-								hrp.Color = Color3.fromRGB(0, 0, 255) -- Really Blue
+								hrp.Color = Color3.fromRGB(0, 0, 255)
 								hrp.Material = Enum.Material.Neon
 							else
 								if isRainbowTarget(p.Name) then
-									hrp.Color = GetRainbow()
-									hrp.Material = Enum.Material.Neon
+									hrp.Color = GetRainbow(); hrp.Material = Enum.Material.Neon
 								else
-									hrp.Color = p.TeamColor.Color
-									hrp.Material = Enum.Material.ForceField -- Looks cool for team colors
+									hrp.Color = p.TeamColor.Color; hrp.Material = Enum.Material.ForceField
 								end
 							end
 						end)
 					end
 				end
 
-				-- [[ ESP LOGIC ]]
+				-- [[ VISUALS ]]
 				if ESP_SETTINGS.HideTeam and isTeammate then
 					cleanup(p);
 					local h = p.Character:FindFirstChild("KopiHighlight")
