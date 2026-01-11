@@ -1,4 +1,4 @@
--- [[ KOPI'S HUB - AIMBOT UI FIX (PART 1) ]]
+-- [[ KOPI'S HUB - FIXED SCROLL & FOV (PART 1) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -28,7 +28,7 @@ getgenv().ESP_SETTINGS = {
 	Aimbot = false,
 	AimPart = "Head",       -- "Head" or "Torso"
 	AimTeamCheck = true,    -- Separate team check
-	AimFOV = true,          -- Draw Circle
+	AimFOV = false,          -- Draw Circle
 	AimRadius = 100,        -- Circle Size
 	AimSmartDist = false,   -- Priority: Distance vs Crosshair
 	AimSmooth = 0.2         -- 1 = Instant, 0.1 = Very Smooth
@@ -87,7 +87,7 @@ ScreenGui.ResetOnSpawn = false
 
 -- [[ MAIN FRAME ]]
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.fromOffset(340, 380) -- Wider for 4 tabs
+MainFrame.Size = UDim2.fromOffset(340, 380) 
 MainFrame.Position = LoadPosition()
 MainFrame.BackgroundColor3 = THEME.Bg
 MainFrame.BorderSizePixel = 0
@@ -191,21 +191,20 @@ local PageContainer = Instance.new("Frame", MainFrame)
 PageContainer.Position = UDim2.new(0, 10, 0, 94); PageContainer.Size = UDim2.new(1, -20, 1, -104)
 PageContainer.BackgroundTransparency = 1; PageContainer.ClipsDescendants = true
 
--- Pages
-local VisPage = Instance.new("ScrollingFrame", PageContainer)
-VisPage.Size = UDim2.new(1,0,1,0); VisPage.BackgroundTransparency = 1; VisPage.ScrollBarThickness = 2; VisPage.BorderSizePixel = 0
-local VisLayout = Instance.new("UIListLayout", VisPage); VisLayout.Padding = UDim.new(0, 8)
+-- Pages (ALL SCROLLING FRAMES NOW)
+local function CreatePage(visible)
+	local p = Instance.new("ScrollingFrame", PageContainer)
+	p.Size = UDim2.new(1,0,1,0); p.BackgroundTransparency = 1; p.Visible = visible
+	p.ScrollBarThickness = 2; p.BorderSizePixel = 0
+	local l = Instance.new("UIListLayout", p); l.Padding = UDim.new(0, 8)
+	l:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() p.CanvasSize = UDim2.fromOffset(0, l.AbsoluteContentSize.Y + 10) end)
+	return p, l
+end
 
-local TargPage = Instance.new("Frame", PageContainer)
-TargPage.Size = UDim2.new(1,0,1,0); TargPage.BackgroundTransparency = 1; TargPage.Visible = false
-
-local HitboxPage = Instance.new("Frame", PageContainer)
-HitboxPage.Size = UDim2.new(1,0,1,0); HitboxPage.BackgroundTransparency = 1; HitboxPage.Visible = false
-local HitboxLayout = Instance.new("UIListLayout", HitboxPage); HitboxLayout.Padding = UDim.new(0, 8)
-
-local AimPage = Instance.new("Frame", PageContainer)
-AimPage.Size = UDim2.new(1,0,1,0); AimPage.BackgroundTransparency = 1; AimPage.Visible = false
-local AimLayout = Instance.new("UIListLayout", AimPage); AimLayout.Padding = UDim.new(0, 8)
+local VisPage, VisLayout = CreatePage(true)
+local TargPage = Instance.new("Frame", PageContainer); TargPage.Size = UDim2.new(1,0,1,0); TargPage.BackgroundTransparency=1; TargPage.Visible=false -- TargPage kept as Frame for custom layout
+local HitboxPage, HitboxLayout = CreatePage(false)
+local AimPage, AimLayout = CreatePage(false)
 
 -- Function to switch tabs
 local function CreateTabBtn(text, posScale, pageToShow)
@@ -270,7 +269,6 @@ CreateToggle(VisPage, "Names", "Names")
 CreateToggle(VisPage, "Distance", "Distance")
 CreateToggle(VisPage, "Health Bar + HP", "HealthBar")
 CreateToggle(VisPage, "Hide Team", "HideTeam")
-VisLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() VisPage.CanvasSize = UDim2.fromOffset(0, VisLayout.AbsoluteContentSize.Y + 10) end)
 
 -- [[ BUILD TARGETS ]]
 local TargInput = Instance.new("TextBox", TargPage)
@@ -349,7 +347,7 @@ ResetBtn.MouseButton1Click:Connect(function()
 end)
 
 -- [[ BUILD AIMBOT ]]
--- MOVED FOV INPUT TO TOP
+-- FOV Input (TOP)
 local FOVInput = Instance.new("TextBox", AimPage)
 FOVInput.Size = UDim2.new(1, 0, 0, 36); FOVInput.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 FOVInput.TextColor3 = THEME.Text; FOVInput.PlaceholderText = "FOV Radius: " .. ESP_SETTINGS.AimRadius; FOVInput.Font = Enum.Font.Gotham; FOVInput.TextSize = 14
@@ -380,7 +378,7 @@ CreateButton(AimPage, "Smoothness: Legit", function(btn)
 		ESP_SETTINGS.AimSmooth = 0.2; btn.Text = "Smoothness: Legit"
 	end
 end)
--- [[ KOPI'S HUB - AIMBOT UI FIX (PART 2) ]]
+-- [[ KOPI'S HUB - FIXED SCROLL & FOV (PART 2) ]]
 
 -- [[ DRAWING OBJECTS ]]
 local FOVring = Drawing.new("Circle")
@@ -498,10 +496,10 @@ RunService.RenderStepped:Connect(function()
 	local vp = Camera.ViewportSize
 	local center = Vector2.new(vp.X/2, vp.Y/2)
 	
-	-- Update FOV Ring
+	-- Update FOV Ring (FIXED VISIBILITY)
 	FOVring.Radius = ESP_SETTINGS.AimRadius
 	FOVring.Position = center
-	FOVring.Visible = ESP_SETTINGS.Aimbot and ESP_SETTINGS.AimFOV
+	FOVring.Visible = ESP_SETTINGS.AimFOV -- Removed "and Aimbot" dependency
 
 	-- Aimbot Execution
 	if ESP_SETTINGS.Aimbot then
