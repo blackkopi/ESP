@@ -1,4 +1,4 @@
--- [[ KOPI'S ESP - FIXED DYNAMIC BOX UPDATE (PART 1) ]]
+-- [[ KOPI'S ESP - FIXED BOX + WALLCHECK TOGGLE (PART 1) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -18,7 +18,8 @@ getgenv().ESP_SETTINGS = {
 	Names = true,
 	Distance = true,
 	HealthBar = true,
-	HideTeam = false
+	HideTeam = false,
+	WallCheck = false -- New Toggle Default
 }
 getgenv().RainbowTargets = {}
 
@@ -72,7 +73,7 @@ ScreenGui.ResetOnSpawn = false
 
 -- [[ MAIN FRAME ]]
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.fromOffset(260, 360)
+MainFrame.Size = UDim2.fromOffset(260, 400) -- Made slightly taller for new button
 MainFrame.Position = LoadPosition()
 MainFrame.BackgroundColor3 = THEME.Bg
 MainFrame.BorderSizePixel = 0
@@ -222,6 +223,7 @@ end
 
 CreateToggle("ESP Boxes", "Box"); CreateToggle("Skeleton", "Skeleton"); CreateToggle("Chams", "Chams"); CreateToggle("Tracers", "Tracers")
 CreateToggle("Names", "Names"); CreateToggle("Distance", "Distance"); CreateToggle("Health Bar + HP", "HealthBar"); CreateToggle("Hide Team", "HideTeam")
+CreateToggle("Wall Check (Fade)", "WallCheck") -- New Button
 
 VisLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() VisPage.CanvasSize = UDim2.fromOffset(0, VisLayout.AbsoluteContentSize.Y + 10) end)
 
@@ -258,7 +260,7 @@ TargInput.FocusLost:Connect(function(enter)
 	if enter and TargInput.Text ~= "" then table.insert(RainbowTargets, TargInput.Text:lower()); TargInput.Text = ""; SoundManager.Play("Open"); RefreshTargets() end
 end)
 ClearBtn.MouseButton1Click:Connect(function() table.clear(RainbowTargets); SoundManager.Play("Click"); RefreshTargets() end)
--- [[ KOPI'S ESP - WALLCHECK + FADE UPDATE (PART 2) ]]
+-- [[ KOPI'S ESP - LEGACY RAYCAST FIX (PART 2) ]]
 
 local ESPStore = {}
 local R15_LINKS = {
@@ -307,20 +309,22 @@ local function isRainbowTarget(name)
 end
 local function GetRainbow() return Color3.fromHSV((tick()*0.5)%1, 0.8, 1) end
 
--- [[ WALLCHECK FUNCTION ]]
+-- [[ LEGACY WALLCHECK (WORKS ON ALL EXECUTORS) ]]
 local function CheckVis(targetPart, ignoreList)
+	-- Uses the older FindPartOnRay method which is 100% compatible
 	local origin = Camera.CFrame.Position
-	local dir = targetPart.Position - origin
-	local params = RaycastParams.new()
-	params.FilterDescendantsInstances = ignoreList
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.IgnoreWater = true
+	local direction = (targetPart.Position - origin).Unit * 5000
+	local ray = Ray.new(origin, direction)
 	
-	local res = workspace:Raycast(origin, dir, params)
-	return res == nil -- True if visible (nothing hit)
+	local hit, pos = workspace:FindPartOnRayWithIgnoreList(ray, ignoreList)
+	
+	-- If we hit nothing, or we hit the target part/character, it is visible
+	if not hit then return true end
+	if hit:IsDescendantOf(targetPart.Parent) then return true end
+	
+	return false -- We hit a wall
 end
 
--- [[ RENDER LOOP ]]
 RunService.RenderStepped:Connect(function()
     local vp = Camera.ViewportSize
     local center = Vector2.new(vp.X/2, vp.Y/2)
@@ -359,41 +363,48 @@ RunService.RenderStepped:Connect(function()
                 local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
                 
                 -- [[ WALLCHECK LOGIC ]]
+                local mainAlpha = 1
+                local outlineAlpha = 0.5
                 local isVisible = true
-                if onScreen then
-                    -- Check visibility ignoring camera, local player, and target character
-                    isVisible = CheckVis(head or hrp, {Camera, LocalPlayer.Character, p.Character})
+                
+                -- Only run check if enabled AND player is on screen (saves lag)
+                if ESP_SETTINGS.WallCheck and onScreen then
+                    -- Ignore Camera, LocalPlayer, and Target Character
+                    local ignore = {Camera, LocalPlayer.Character, p.Character}
+                    -- Use HEAD for visibility check (most important part)
+                    isVisible = CheckVis(head or hrp, ignore)
+                    
+                    if not isVisible then
+                        mainAlpha = 0.3 -- Fade if hidden
+                        outlineAlpha = 0.15
+                    end
                 end
-                
-                -- Transparency Value: 1 = Visible, 0.3 = Behind Wall
-                local mainAlpha = isVisible and 1 or 0.3
-                local outlineAlpha = isVisible and 0.5 or 0.15
-                
+
                 local cham = p.Character:FindFirstChild("KopiHighlight")
                 if not cham then if ESP_SETTINGS.Chams then ApplyChams(p.Character) end
                 else 
-                	cham.Enabled = ESP_SETTINGS.Chams
-                	cham.FillColor = col
-                	cham.OutlineColor = Color3.new(1,1,1)
-                	-- Update Cham transparency based on wallcheck
-                	cham.FillTransparency = isVisible and 0.6 or 0.85
-                	cham.OutlineTransparency = isVisible and 0.2 or 0.8
+                    cham.Enabled = ESP_SETTINGS.Chams
+                    cham.FillColor = col
+                    cham.OutlineColor = Color3.new(1,1,1)
+                    if ESP_SETTINGS.WallCheck then
+                        cham.FillTransparency = isVisible and 0.6 or 0.85
+                        cham.OutlineTransparency = isVisible and 0.2 or 0.8
+                    else
+                        cham.FillTransparency = 0.6; cham.OutlineTransparency = 0.2
+                    end
                 end
                 
                 if onScreen then
-                    -- [[ BOX SIZING ]]
+                    -- [[ RELIABLE BOX SIZING ]]
                     local dist = (Camera.CFrame.Position - hrp.Position).Magnitude
                     
-                    local topPos = (head and head.Position + Vector3.new(0, 1.5, 0)) or (hrp.Position + Vector3.new(0, 4, 0))
-                    local botPos = hrp.Position - Vector3.new(0, 4.5, 0)
-                    local topScreen = Camera:WorldToViewportPoint(topPos)
-                    local botScreen = Camera:WorldToViewportPoint(botPos)
-                    
-                    local h = math.abs(botScreen.Y - topScreen.Y)
-                    local w = h * 0.75 -- Wider box
+                    -- Scale Factor: 3000 is standard
+                    local scaleFactor = 3000
+                    local h = scaleFactor / pos.Z 
+                    local w = h * 0.6 
                     
                     local boxX = pos.X - w/2
-                    local boxY = topScreen.Y
+                    local boxY = pos.Y - h/2
                     
                     esp.BoxOutline.Visible = ESP_SETTINGS.Box
                     esp.Box.Visible = ESP_SETTINGS.Box
