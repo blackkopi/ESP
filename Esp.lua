@@ -1,4 +1,4 @@
--- [[ KOPI'S HUB - FIXED FINAL (PART 1) ]]
+-- [[ KOPI'S HUB - FINAL FIX (PART 1) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -85,12 +85,11 @@ local ScreenGui = Instance.new("ScreenGui", CoreGui)
 ScreenGui.Name = "KOPI_PREMIUM_UI"
 ScreenGui.ResetOnSpawn = false
 
--- [[ NEW: NATIVE FOV CIRCLE ]]
--- This uses a UI Frame instead of Drawing so it 100% works on mobile
+-- [[ NATIVE FOV CIRCLE ]]
 local FOV_Frame = Instance.new("Frame", ScreenGui)
 FOV_Frame.Name = "FOV_Ring"
 FOV_Frame.AnchorPoint = Vector2.new(0.5, 0.5)
-FOV_Frame.Position = UDim2.new(0.5, 0, 0.5, 0) -- Perfectly Centered
+FOV_Frame.Position = UDim2.new(0.5, 0, 0.5, 0)
 FOV_Frame.BackgroundTransparency = 1
 FOV_Frame.Size = UDim2.fromOffset(ESP_SETTINGS.AimRadius * 2, ESP_SETTINGS.AimRadius * 2)
 FOV_Frame.Visible = false
@@ -102,7 +101,7 @@ FOV_Stroke.Thickness = 2
 FOV_Stroke.Transparency = 0.5
 
 local FOV_Corner = Instance.new("UICorner", FOV_Frame)
-FOV_Corner.CornerRadius = UDim.new(1, 0) -- Makes it a circle
+FOV_Corner.CornerRadius = UDim.new(1, 0)
 
 -- [[ MAIN FRAME ]]
 local MainFrame = Instance.new("Frame", ScreenGui)
@@ -115,7 +114,7 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 16)
 local UIStroke = Instance.new("UIStroke", MainFrame)
 UIStroke.Color = THEME.Stroke; UIStroke.Thickness = 1.5; UIStroke.Transparency = 0.5
 
--- [[ PILL (MINIMIZED) ]]
+-- [[ PILL ]]
 local MiniFrame = Instance.new("Frame", ScreenGui)
 MiniFrame.Size = UDim2.fromOffset(130, 40)
 MiniFrame.Position = MainFrame.Position
@@ -400,7 +399,7 @@ CreateButton(AimPage, "Smoothness: Legit", function(btn)
 		ESP_SETTINGS.AimSmooth = 0.2; btn.Text = "Smoothness: Legit"
 	end
 end)
--- [[ KOPI'S HUB - FIXED FINAL (PART 2) ]]
+-- [[ KOPI'S HUB - FINAL FIX (PART 2) ]]
 
 local ESPStore = {}
 
@@ -469,7 +468,15 @@ local function GetClosestPlayer()
 			-- Team Check
 			if ESP_SETTINGS.AimTeamCheck and p.Team == LocalPlayer.Team then continue end
 			
+			-- [[ FIX: INTELLIGENT PART FINDER (R15 vs R6) ]]
 			local part = p.Character:FindFirstChild(ESP_SETTINGS.AimPart)
+			if not part and ESP_SETTINGS.AimPart == "Torso" then
+				-- If "Torso" missing, check for "UpperTorso" (R15)
+				part = p.Character:FindFirstChild("UpperTorso")
+			end
+			-- Fallback to RootPart if standard parts are missing
+			if not part then part = p.Character:FindFirstChild("HumanoidRootPart") end
+			
 			local hum = p.Character:FindFirstChild("Humanoid")
 			
 			if part and hum and hum.Health > 0 then
@@ -508,7 +515,6 @@ RunService.RenderStepped:Connect(function()
 	local center = Vector2.new(vp.X/2, vp.Y/2)
 	
 	-- [[ UPDATE NATIVE FOV CIRCLE ]]
-	-- No more Drawing library. This uses the GUI Frame we made in Part 1.
 	if FOV_Frame then
 		FOV_Frame.Visible = ESP_SETTINGS.AimFOV
 		FOV_Frame.Size = UDim2.fromOffset(ESP_SETTINGS.AimRadius * 2, ESP_SETTINGS.AimRadius * 2)
