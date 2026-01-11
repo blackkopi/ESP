@@ -1,4 +1,4 @@
--- [[ KOPI'S HUB - NATIVE FOV FIX (PART 1) ]]
+-- [[ KOPI'S HUB - FIXED FINAL (PART 1) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -400,7 +400,7 @@ CreateButton(AimPage, "Smoothness: Legit", function(btn)
 		ESP_SETTINGS.AimSmooth = 0.2; btn.Text = "Smoothness: Legit"
 	end
 end)
--- [[ KOPI'S HUB - NATIVE FOV FIX (PART 2) ]]
+-- [[ KOPI'S HUB - FIXED FINAL (PART 2) ]]
 
 local ESPStore = {}
 
