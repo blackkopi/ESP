@@ -1,5 +1,4 @@
--- [[ KOPI'S ESP - GHOST MODE UPDATE (PART 1) ]]
--- Copy this part first!
+-- [[ KOPI'S ESP - FIXED DYNAMIC BOX UPDATE (PART 1) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -19,8 +18,7 @@ getgenv().ESP_SETTINGS = {
 	Names = true,
 	Distance = true,
 	HealthBar = true,
-	HideTeam = false,
-	WallCheck = false -- [NEW] Ghost Mode Toggle
+	HideTeam = false
 }
 getgenv().RainbowTargets = {}
 
@@ -197,8 +195,6 @@ TargPage.Size = UDim2.new(1,0,1,0); TargPage.BackgroundTransparency = 1; TargPag
 
 CreateTabBtn("VISUALS", 0, function() CreateTween(TabHighlight, {Position = UDim2.new(0, 2, 0, 2)}); TargPage.Visible = false; VisPage.Visible = true end)
 CreateTabBtn("TARGETS", 0.5, function() CreateTween(TabHighlight, {Position = UDim2.new(0.5, 2, 0, 2)}); VisPage.Visible = false; TargPage.Visible = true end)
--- [[ KOPI'S ESP - FINAL FIX (PART 2) ]]
--- Paste this directly under Part 1
 
 local function CreateToggle(text, configKey)
 	local Btn = Instance.new("TextButton", VisPage)
@@ -224,11 +220,8 @@ local function CreateToggle(text, configKey)
 	end)
 end
 
-CreateToggle("ESP Boxes", "Box"); CreateToggle("Skeleton", "Skeleton")
-CreateToggle("Chams", "Chams"); CreateToggle("Tracers", "Tracers")
-CreateToggle("Names", "Names"); CreateToggle("Distance", "Distance")
-CreateToggle("Health Bar + HP", "HealthBar"); CreateToggle("Hide Team", "HideTeam")
-CreateToggle("Wall Check (Ghost)", "WallCheck")
+CreateToggle("ESP Boxes", "Box"); CreateToggle("Skeleton", "Skeleton"); CreateToggle("Chams", "Chams"); CreateToggle("Tracers", "Tracers")
+CreateToggle("Names", "Names"); CreateToggle("Distance", "Distance"); CreateToggle("Health Bar + HP", "HealthBar"); CreateToggle("Hide Team", "HideTeam")
 
 VisLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() VisPage.CanvasSize = UDim2.fromOffset(0, VisLayout.AbsoluteContentSize.Y + 10) end)
 
@@ -256,7 +249,8 @@ local function RefreshTargets()
 		t.Font = Enum.Font.Gotham; t.TextColor3 = THEME.Text; t.TextXAlignment = Enum.TextXAlignment.Left; t.BackgroundTransparency = 1
 		local del = Instance.new("TextButton", f)
 		del.Size = UDim2.fromOffset(24,24); del.Position = UDim2.new(1,-28,0,3); del.Text = "X"; del.BackgroundColor3 = THEME.Red; del.TextColor3 = Color3.new(1,1,1)
-		Instance.new("UICorner", del).CornerRadius = UDim.new(0,4); del.MouseButton1Click:Connect(function() table.remove(RainbowTargets, i); SoundManager.Play("Click"); RefreshTargets() end)
+		Instance.new("UICorner", del).CornerRadius = UDim.new(0,4);
+		del.MouseButton1Click:Connect(function() table.remove(RainbowTargets, i); SoundManager.Play("Click"); RefreshTargets() end)
 	end
 end
 
@@ -264,11 +258,9 @@ TargInput.FocusLost:Connect(function(enter)
 	if enter and TargInput.Text ~= "" then table.insert(RainbowTargets, TargInput.Text:lower()); TargInput.Text = ""; SoundManager.Play("Open"); RefreshTargets() end
 end)
 ClearBtn.MouseButton1Click:Connect(function() table.clear(RainbowTargets); SoundManager.Play("Click"); RefreshTargets() end)
-
--- [[ ESP LOGIC & CHAMS FIX ]]
+-- [[ KOPI'S ESP - FIXED DYNAMIC BOX UPDATE (PART 2) ]]
 
 local ESPStore = {}
-
 local R15_LINKS = {
 	{"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"}, {"LowerTorso", "LeftUpperLeg"},
 	{"LeftUpperLeg", "LeftLowerLeg"}, {"LeftLowerLeg", "LeftFoot"}, {"LowerTorso", "RightUpperLeg"},
@@ -293,29 +285,19 @@ local function cleanup(p)
 	end
 end
 
--- [[ FIXED CHAMS LOGIC ]]
 local function ApplyChams(character)
 	local old = character:FindFirstChild("KopiHighlight")
 	if old then old:Destroy() end
-
 	local h = Instance.new("Highlight", character)
 	h.Name = "KopiHighlight"
-	h.FillTransparency = 0.6
-	h.OutlineTransparency = 0.2
-	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	h.FillTransparency = 0.6; h.OutlineTransparency = 0.2; h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 end
 
 local function PlayerSetup(p)
 	if p.Character then ApplyChams(p.Character) end
-	p.CharacterAdded:Connect(function(char)
-		task.wait(0.5)
-		ApplyChams(char)
-	end)
+	p.CharacterAdded:Connect(function(char) task.wait(0.5); ApplyChams(char) end)
 end
-
-for _, p in ipairs(Players:GetPlayers()) do
-	if p ~= LocalPlayer then PlayerSetup(p) end
-end
+for _, p in ipairs(Players:GetPlayers()) do if p ~= LocalPlayer then PlayerSetup(p) end end
 Players.PlayerAdded:Connect(PlayerSetup)
 
 local function isRainbowTarget(name)
@@ -323,187 +305,146 @@ local function isRainbowTarget(name)
 	for _,p in ipairs(RainbowTargets) do if name:sub(1,#p) == p then return true end end
 	return false
 end
-
 local function GetRainbow() return Color3.fromHSV((tick()*0.5)%1, 0.8, 1) end
 
-local RayParams = RaycastParams.new()
-RayParams.FilterType = Enum.RaycastFilterType.Exclude
-RayParams.IgnoreWater = true
-
+-- [[ FIXED RENDER LOOP WITH DYNAMIC BOX ]]
 RunService.RenderStepped:Connect(function()
-	local vp = Camera.ViewportSize
-	local center = Vector2.new(vp.X/2, vp.Y/2)
+    local vp = Camera.ViewportSize
+    local center = Vector2.new(vp.X/2, vp.Y/2)
 
-	for _, p in ipairs(Players:GetPlayers()) do
-		if p ~= LocalPlayer and p.Character then
-			local hum = p.Character:FindFirstChild("Humanoid")
-			local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-			
-			if hum and hrp and hum.Health > 0 then
-				if ESP_SETTINGS.HideTeam and p.Team == LocalPlayer.Team then
-					cleanup(p);
-					local h = p.Character:FindFirstChild("KopiHighlight")
-					if h then h.Enabled = false end
-					continue
-				end
-				
-				if not ESPStore[p] then
-					ESPStore[p] = {
-						Box = D("Square", {Thickness=1.5, Filled=false, Transparency=1}),
-						BoxOutline = D("Square", {Thickness=3, Filled=false, Transparency=0.5, Color=Color3.new(0,0,0)}),
-						Tracer = D("Line", {Thickness=1, Transparency=1}),
-						Name = D("Text", {Size=13, Center=true, Outline=true, Font=2}),
-						Info = D("Text", {Size=11, Center=true, Outline=true, Font=2}),
-						BarOutline = D("Line", {Thickness=4, Color=Color3.new(0,0,0)}),
-						Bar = D("Line", {Thickness=2}),
-						Head = D("Circle", {Thickness=1.5, NumSides=20, Radius=0, Filled=false}),
-						Skeleton = {}
-					}
-					for i=1, 15 do table.insert(ESPStore[p].Skeleton, D("Line", {Thickness=2, Color=Color3.new(1,1,1)})) end
-				end
-				
-				local esp = ESPStore[p]
-				local col = isRainbowTarget(p.Name) and GetRainbow() or p.TeamColor.Color
-				local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
-				
-				-- WallCheck Logic
-				local isVisible = true
-				if ESP_SETTINGS.WallCheck and LocalPlayer.Character then
-					RayParams.FilterDescendantsInstances = {LocalPlayer.Character, p.Character, Camera}
-					local result = workspace:Raycast(Camera.CFrame.Position, hrp.Position - Camera.CFrame.Position, RayParams)
-					if result then isVisible = false end
-				end
-
-				-- Only apply transparency if actually ghosting (prevents property spam glitches)
-				local alpha = 1
-				if ESP_SETTINGS.WallCheck and not isVisible then alpha = 0.35 end
-
-				if onScreen then
-					local dist = (Camera.CFrame.Position - hrp.Position).Magnitude
-					local size = math.clamp(2000/pos.Z, 25, 300)
-					local w, h = size, size*1.5
-					
-					-- Chams
-					local cham = p.Character:FindFirstChild("KopiHighlight")
-					if cham then
-						cham.Enabled = ESP_SETTINGS.Chams
-						cham.FillColor = col
-						if alpha < 1 then
-							cham.FillTransparency = 0.85; cham.OutlineTransparency = 1; cham.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-						else
-							cham.FillTransparency = 0.6; cham.OutlineTransparency = 0.2; cham.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-						end
-					end
-					
-					-- Boxes (Logic Restored)
-					esp.BoxOutline.Visible = ESP_SETTINGS.Box
-					esp.Box.Visible = ESP_SETTINGS.Box
-					if ESP_SETTINGS.Box then
-						esp.Box.Size = Vector2.new(w, h)
-						esp.Box.Position = Vector2.new(pos.X - w/2, pos.Y - h/2)
-						esp.Box.Color = col
-						esp.BoxOutline.Size = Vector2.new(w, h)
-						esp.BoxOutline.Position = esp.Box.Position
-						
-						-- Only touch Transparency if needed to avoid glitches
-						if alpha < 1 then
-							esp.Box.Transparency = alpha
-							esp.BoxOutline.Transparency = 0.5 * alpha
-						else
-							esp.Box.Transparency = 1
-							esp.BoxOutline.Transparency = 0.5
-						end
-					end
-					
-					esp.Tracer.Visible = ESP_SETTINGS.Tracers
-					if ESP_SETTINGS.Tracers then
-						esp.Tracer.From = Vector2.new(center.X, vp.Y)
-						esp.Tracer.To = Vector2.new(pos.X, pos.Y + h/2)
-						esp.Tracer.Color = col
-						esp.Tracer.Transparency = alpha
-					end
-					
-					esp.Name.Visible = ESP_SETTINGS.Names
-					if ESP_SETTINGS.Names then
-						esp.Name.Text = p.Name
-						esp.Name.Position = Vector2.new(pos.X, pos.Y - h/2 - 16)
-						esp.Name.Color = col
-						esp.Name.Transparency = alpha
-					end
-					
-					esp.Info.Visible = (ESP_SETTINGS.Distance or ESP_SETTINGS.HealthBar)
-					if esp.Info.Visible then
-						local txt = ""
-						if ESP_SETTINGS.Distance then txt = math.floor(dist).."m " end
-						if ESP_SETTINGS.HealthBar then txt = txt.."["..math.floor(hum.Health).."]" end
-						esp.Info.Text = txt
-						esp.Info.Position = Vector2.new(pos.X, pos.Y + h/2 + 2)
-						esp.Info.Color = col
-						esp.Info.Transparency = alpha
-					end
-					
-					esp.Bar.Visible = ESP_SETTINGS.HealthBar
-					esp.BarOutline.Visible = ESP_SETTINGS.HealthBar
-					if ESP_SETTINGS.HealthBar then
-						local hp = math.clamp(hum.Health/hum.MaxHealth, 0, 1)
-						local barX = pos.X - w/2 - 6
-						local barTop = pos.Y - h/2
-						local barBot = pos.Y + h/2
-						local barH = h * hp
-						esp.BarOutline.From = Vector2.new(barX, barTop)
-						esp.BarOutline.To = Vector2.new(barX, barBot)
-						esp.BarOutline.Transparency = alpha
-						esp.Bar.Color = Color3.fromHSV(hp * 0.3, 1, 1)
-						esp.Bar.From = Vector2.new(barX, barBot)
-						esp.Bar.To = Vector2.new(barX, barBot - barH)
-						esp.Bar.Transparency = alpha
-					end
-					
-					local doSkel = ESP_SETTINGS.Skeleton
-					for _, l in ipairs(esp.Skeleton) do l.Visible = false end
-					esp.Head.Visible = false
-					
-					if doSkel then
-						local hObj = p.Character:FindFirstChild("Head")
-						if hObj then
-							local hp, hon = Camera:WorldToViewportPoint(hObj.Position)
-							if hon then
-								esp.Head.Visible = true; esp.Head.Position = Vector2.new(hp.X, hp.Y)
-								esp.Head.Radius = math.clamp(400/pos.Z, 4, 15); esp.Head.Color = col
-								esp.Head.Transparency = alpha
-							end
-						end
-						local links = (hum.RigType == Enum.HumanoidRigType.R15) and R15_LINKS or R6_LINKS
-						for i, lnk in ipairs(links) do
-							local l = esp.Skeleton[i]
-							if l then
-								local p1 = p.Character:FindFirstChild(lnk[1])
-								local p2 = p.Character:FindFirstChild(lnk[2])
-								if p1 and p2 then
-									local s1, o1 = Camera:WorldToViewportPoint(p1.Position)
-									local s2, o2 = Camera:WorldToViewportPoint(p2.Position)
-									if o1 and o2 then
-										l.Visible = true; l.From = Vector2.new(s1.X, s1.Y); l.To = Vector2.new(s2.X, s2.Y);
-										l.Color = col; l.Transparency = alpha
-									end
-								end
-							end
-						end
-					end
-				else
-					local cham = p.Character:FindFirstChild("KopiHighlight")
-					if cham then cham.Enabled = false end
-					
-					for _, d in pairs(esp) do
-						if typeof(d)=="table" then for _,s in pairs(d) do s.Visible=false end
-						else d.Visible=false end
-					end
-				end
-			else
-				cleanup(p)
-			end
-		end
-	end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local hum = p.Character:FindFirstChild("Humanoid")
+            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+            
+            if hum and hrp and hum.Health > 0 then
+                if ESP_SETTINGS.HideTeam and p.Team == LocalPlayer.Team then
+                    cleanup(p);
+                    local h = p.Character:FindFirstChild("KopiHighlight")
+                    if h then h.Enabled = false end
+                    continue
+                end
+                
+                if not ESPStore[p] then
+                    ESPStore[p] = {
+                        Box = D("Square", {Thickness=1.5, Filled=false, Transparency=1}),
+                        BoxOutline = D("Square", {Thickness=3, Filled=false, Transparency=0.5, Color=Color3.new(0,0,0)}),
+                        Tracer = D("Line", {Thickness=1, Transparency=1}),
+                        Name = D("Text", {Size=13, Center=true, Outline=true, Font=2}),
+                        Info = D("Text", {Size=11, Center=true, Outline=true, Font=2}),
+                        BarOutline = D("Line", {Thickness=4, Color=Color3.new(0,0,0)}),
+                        Bar = D("Line", {Thickness=2}),
+                        Head = D("Circle", {Thickness=1.5, NumSides=20, Radius=0, Filled=false}),
+                        Skeleton = {}
+                    }
+                    for i=1, 15 do table.insert(ESPStore[p].Skeleton, D("Line", {Thickness=2, Color=Color3.new(1,1,1)})) end
+                end
+                
+                local esp = ESPStore[p]
+                local col = isRainbowTarget(p.Name) and GetRainbow() or p.TeamColor.Color
+                local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+                
+                local cham = p.Character:FindFirstChild("KopiHighlight")
+                if not cham then if ESP_SETTINGS.Chams then ApplyChams(p.Character) end
+                else cham.Enabled = ESP_SETTINGS.Chams; cham.FillColor = col; cham.OutlineColor = Color3.new(1,1,1) end
+                
+                if onScreen then
+                    -- [[ DYNAMIC BOX MATH ]]
+                    local headObj = p.Character:FindFirstChild("Head")
+                    local dist = (Camera.CFrame.Position - hrp.Position).Magnitude
+                    local topPos = (headObj and headObj.Position + Vector3.new(0, 0.5, 0)) or (hrp.Position + Vector3.new(0, 3, 0))
+                    local botPos = hrp.Position - Vector3.new(0, 3.5, 0)
+                    local topScreen = Camera:WorldToViewportPoint(topPos)
+                    local botScreen = Camera:WorldToViewportPoint(botPos)
+                    
+                    local h = math.abs(botScreen.Y - topScreen.Y)
+                    local w = h * 0.6
+                    local boxX = pos.X - w/2
+                    local boxY = topScreen.Y
+                    
+                    esp.BoxOutline.Visible = ESP_SETTINGS.Box
+                    esp.Box.Visible = ESP_SETTINGS.Box
+                    if ESP_SETTINGS.Box then
+                        esp.Box.Size = Vector2.new(w, h)
+                        esp.Box.Position = Vector2.new(boxX, boxY)
+                        esp.Box.Color = col
+                        esp.BoxOutline.Size = Vector2.new(w, h)
+                        esp.BoxOutline.Position = esp.Box.Position
+                    end
+                    
+                    esp.Tracer.Visible = ESP_SETTINGS.Tracers
+                    if ESP_SETTINGS.Tracers then
+                        esp.Tracer.From = Vector2.new(center.X, vp.Y)
+                        esp.Tracer.To = Vector2.new(pos.X, boxY + h)
+                        esp.Tracer.Color = col
+                    end
+                    
+                    esp.Name.Visible = ESP_SETTINGS.Names
+                    if ESP_SETTINGS.Names then
+                        esp.Name.Text = p.Name
+                        esp.Name.Position = Vector2.new(pos.X, boxY - 16)
+                        esp.Name.Color = col
+                    end
+                    
+                    esp.Info.Visible = (ESP_SETTINGS.Distance or ESP_SETTINGS.HealthBar)
+                    if esp.Info.Visible then
+                        local txt = ""
+                        if ESP_SETTINGS.Distance then txt = math.floor(dist).."m " end
+                        if ESP_SETTINGS.HealthBar then txt = txt.."["..math.floor(hum.Health).."]" end
+                        esp.Info.Text = txt
+                        esp.Info.Position = Vector2.new(pos.X, boxY + h + 2)
+                        esp.Info.Color = col 
+                    end
+                    
+                    esp.Bar.Visible = ESP_SETTINGS.HealthBar
+                    esp.BarOutline.Visible = ESP_SETTINGS.HealthBar
+                    if ESP_SETTINGS.HealthBar then
+                        local hp = math.clamp(hum.Health/hum.MaxHealth, 0, 1)
+                        local barX = boxX - 6
+                        local barTop = boxY; local barBot = boxY + h
+                        local barH = h * hp
+                        esp.BarOutline.From = Vector2.new(barX, barTop); esp.BarOutline.To = Vector2.new(barX, barBot)
+                        esp.Bar.Color = Color3.fromHSV(hp * 0.3, 1, 1)
+                        esp.Bar.From = Vector2.new(barX, barBot); esp.Bar.To = Vector2.new(barX, barBot - barH)
+                    end
+                    
+                    local doSkel = ESP_SETTINGS.Skeleton
+                    for _, l in ipairs(esp.Skeleton) do l.Visible = false end
+                    esp.Head.Visible = false
+                    if doSkel then
+                        if headObj then
+                            local hp, hon = Camera:WorldToViewportPoint(headObj.Position)
+                            if hon then
+                                esp.Head.Visible = true; esp.Head.Position = Vector2.new(hp.X, hp.Y)
+                                esp.Head.Radius = math.clamp(400/pos.Z, 4, 15); esp.Head.Color = col
+                            end
+                        end
+                        local links = (hum.RigType == Enum.HumanoidRigType.R15) and R15_LINKS or R6_LINKS
+                        for i, lnk in ipairs(links) do
+                            local l = esp.Skeleton[i]
+                            if l then
+                                local p1 = p.Character:FindFirstChild(lnk[1])
+                                local p2 = p.Character:FindFirstChild(lnk[2])
+                                if p1 and p2 then
+                                    local s1, o1 = Camera:WorldToViewportPoint(p1.Position)
+                                    local s2, o2 = Camera:WorldToViewportPoint(p2.Position)
+                                    if o1 and o2 then
+                                        l.Visible = true; l.From = Vector2.new(s1.X, s1.Y); l.To = Vector2.new(s2.X, s2.Y); l.Color = col
+                                    end
+                                end
+                            end
+                        end
+                    end
+                else
+                    for _, d in pairs(esp) do
+                        if typeof(d)=="table" then for _,s in pairs(d) do s.Visible=false end else d.Visible=false end
+                    end
+                end
+            else
+                cleanup(p)
+            end
+        end
+    end
 end)
 
 Players.PlayerRemoving:Connect(cleanup)
