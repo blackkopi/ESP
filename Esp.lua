@@ -1,4 +1,4 @@
--- [[ KOPI'S HUB - FIXED SCROLL & FOV (PART 1) ]]
+-- [[ KOPI'S HUB - NATIVE FOV FIX (PART 1) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -26,12 +26,12 @@ getgenv().ESP_SETTINGS = {
 	UniversalColor = true,
 	-- Aimbot
 	Aimbot = false,
-	AimPart = "Head",       -- "Head" or "Torso"
-	AimTeamCheck = true,    -- Separate team check
-	AimFOV = false,          -- Draw Circle
-	AimRadius = 100,        -- Circle Size
-	AimSmartDist = false,   -- Priority: Distance vs Crosshair
-	AimSmooth = 0.2         -- 1 = Instant, 0.1 = Very Smooth
+	AimPart = "Head",       
+	AimTeamCheck = true,    
+	AimFOV = false,          
+	AimRadius = 100,        
+	AimSmartDist = false,   
+	AimSmooth = 0.2         
 }
 getgenv().RainbowTargets = {}
 
@@ -84,6 +84,25 @@ if CoreGui:FindFirstChild("KOPI_PREMIUM_UI") then CoreGui.KOPI_PREMIUM_UI:Destro
 local ScreenGui = Instance.new("ScreenGui", CoreGui)
 ScreenGui.Name = "KOPI_PREMIUM_UI"
 ScreenGui.ResetOnSpawn = false
+
+-- [[ NEW: NATIVE FOV CIRCLE ]]
+-- This uses a UI Frame instead of Drawing so it 100% works on mobile
+local FOV_Frame = Instance.new("Frame", ScreenGui)
+FOV_Frame.Name = "FOV_Ring"
+FOV_Frame.AnchorPoint = Vector2.new(0.5, 0.5)
+FOV_Frame.Position = UDim2.new(0.5, 0, 0.5, 0) -- Perfectly Centered
+FOV_Frame.BackgroundTransparency = 1
+FOV_Frame.Size = UDim2.fromOffset(ESP_SETTINGS.AimRadius * 2, ESP_SETTINGS.AimRadius * 2)
+FOV_Frame.Visible = false
+FOV_Frame.ZIndex = 0
+
+local FOV_Stroke = Instance.new("UIStroke", FOV_Frame)
+FOV_Stroke.Color = THEME.Purple
+FOV_Stroke.Thickness = 2
+FOV_Stroke.Transparency = 0.5
+
+local FOV_Corner = Instance.new("UICorner", FOV_Frame)
+FOV_Corner.CornerRadius = UDim.new(1, 0) -- Makes it a circle
 
 -- [[ MAIN FRAME ]]
 local MainFrame = Instance.new("Frame", ScreenGui)
@@ -191,7 +210,7 @@ local PageContainer = Instance.new("Frame", MainFrame)
 PageContainer.Position = UDim2.new(0, 10, 0, 94); PageContainer.Size = UDim2.new(1, -20, 1, -104)
 PageContainer.BackgroundTransparency = 1; PageContainer.ClipsDescendants = true
 
--- Pages (ALL SCROLLING FRAMES NOW)
+-- Pages
 local function CreatePage(visible)
 	local p = Instance.new("ScrollingFrame", PageContainer)
 	p.Size = UDim2.new(1,0,1,0); p.BackgroundTransparency = 1; p.Visible = visible
@@ -202,7 +221,7 @@ local function CreatePage(visible)
 end
 
 local VisPage, VisLayout = CreatePage(true)
-local TargPage = Instance.new("Frame", PageContainer); TargPage.Size = UDim2.new(1,0,1,0); TargPage.BackgroundTransparency=1; TargPage.Visible=false -- TargPage kept as Frame for custom layout
+local TargPage = Instance.new("Frame", PageContainer); TargPage.Size = UDim2.new(1,0,1,0); TargPage.BackgroundTransparency=1; TargPage.Visible=false 
 local HitboxPage, HitboxLayout = CreatePage(false)
 local AimPage, AimLayout = CreatePage(false)
 
@@ -347,7 +366,6 @@ ResetBtn.MouseButton1Click:Connect(function()
 end)
 
 -- [[ BUILD AIMBOT ]]
--- FOV Input (TOP)
 local FOVInput = Instance.new("TextBox", AimPage)
 FOVInput.Size = UDim2.new(1, 0, 0, 36); FOVInput.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 FOVInput.TextColor3 = THEME.Text; FOVInput.PlaceholderText = "FOV Radius: " .. ESP_SETTINGS.AimRadius; FOVInput.Font = Enum.Font.Gotham; FOVInput.TextSize = 14
@@ -355,7 +373,11 @@ Instance.new("UICorner", FOVInput).CornerRadius = UDim.new(0, 8); Instance.new("
 FOVInput.FocusLost:Connect(function(enter)
 	if enter then
 		local num = tonumber(FOVInput.Text)
-		if num then ESP_SETTINGS.AimRadius = num; FOVInput.Text = "FOV Radius: " .. num; SoundManager.Play("Open") end
+		if num then 
+			ESP_SETTINGS.AimRadius = num
+			FOVInput.Text = "FOV Radius: " .. num
+			SoundManager.Play("Open") 
+		end
 	end
 end)
 
@@ -378,19 +400,8 @@ CreateButton(AimPage, "Smoothness: Legit", function(btn)
 		ESP_SETTINGS.AimSmooth = 0.2; btn.Text = "Smoothness: Legit"
 	end
 end)
--- [[ KOPI'S HUB - FIXED SCROLL & FOV (PART 2) ]]
+-- [[ KOPI'S HUB - NATIVE FOV FIX (PART 2) ]]
 
--- [[ DRAWING OBJECTS ]]
-local FOVring = Drawing.new("Circle")
-FOVring.Visible = false
-FOVring.Thickness = 2
-FOVring.Color = THEME.Purple
-FOVring.Filled = false
-FOVring.Radius = ESP_SETTINGS.AimRadius
-FOVring.Transparency = 1
-FOVring.NumSides = 64
-
--- [[ HELPERS ]]
 local ESPStore = {}
 
 local R15_LINKS = {
@@ -496,18 +507,27 @@ RunService.RenderStepped:Connect(function()
 	local vp = Camera.ViewportSize
 	local center = Vector2.new(vp.X/2, vp.Y/2)
 	
-	-- Update FOV Ring (FIXED VISIBILITY)
-	FOVring.Radius = ESP_SETTINGS.AimRadius
-	FOVring.Position = center
-	FOVring.Visible = ESP_SETTINGS.AimFOV -- Removed "and Aimbot" dependency
+	-- [[ UPDATE NATIVE FOV CIRCLE ]]
+	-- No more Drawing library. This uses the GUI Frame we made in Part 1.
+	if FOV_Frame then
+		FOV_Frame.Visible = ESP_SETTINGS.AimFOV
+		FOV_Frame.Size = UDim2.fromOffset(ESP_SETTINGS.AimRadius * 2, ESP_SETTINGS.AimRadius * 2)
+	end
 
 	-- Aimbot Execution
 	if ESP_SETTINGS.Aimbot then
 		local targetPart = GetClosestPlayer()
 		if targetPart then
+			-- Visual feedback: Turn circle Red if locked, Purple if searching
+			if FOV_Frame and FOV_Stroke then FOV_Stroke.Color = THEME.Red end
+			
 			local lookAt = CFrame.new(Camera.CFrame.Position, targetPart.Position)
 			Camera.CFrame = Camera.CFrame:Lerp(lookAt, ESP_SETTINGS.AimSmooth)
+		else
+			if FOV_Frame and FOV_Stroke then FOV_Stroke.Color = THEME.Purple end
 		end
+	else
+		if FOV_Frame and FOV_Stroke then FOV_Stroke.Color = THEME.Purple end
 	end
 
 	-- ESP Execution
