@@ -1,4 +1,4 @@
--- [[ KOPI'S ESP - FIXED WALLCHECK UPDATE (PART 1) ]]
+-- [[ KOPI'S ESP - GHOST MODE UPDATE (PART 1) ]]
 -- Copy this part first!
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -20,7 +20,7 @@ getgenv().ESP_SETTINGS = {
 	Distance = true,
 	HealthBar = true,
 	HideTeam = false,
-	WallCheck = false -- [NEW] WallCheck Setting
+	WallCheck = false -- [NEW] Ghost Mode Toggle
 }
 getgenv().RainbowTargets = {}
 
@@ -197,7 +197,7 @@ TargPage.Size = UDim2.new(1,0,1,0); TargPage.BackgroundTransparency = 1; TargPag
 
 CreateTabBtn("VISUALS", 0, function() CreateTween(TabHighlight, {Position = UDim2.new(0, 2, 0, 2)}); TargPage.Visible = false; VisPage.Visible = true end)
 CreateTabBtn("TARGETS", 0.5, function() CreateTween(TabHighlight, {Position = UDim2.new(0.5, 2, 0, 2)}); VisPage.Visible = false; TargPage.Visible = true end)
--- [[ KOPI'S ESP - FIXED WALLCHECK UPDATE (PART 2) ]]
+-- [[ KOPI'S ESP - GHOST MODE UPDATE (PART 2) ]]
 -- Paste this directly under Part 1
 
 local function CreateToggle(text, configKey)
@@ -228,7 +228,7 @@ CreateToggle("ESP Boxes", "Box"); CreateToggle("Skeleton", "Skeleton")
 CreateToggle("Chams", "Chams"); CreateToggle("Tracers", "Tracers")
 CreateToggle("Names", "Names"); CreateToggle("Distance", "Distance")
 CreateToggle("Health Bar + HP", "HealthBar"); CreateToggle("Hide Team", "HideTeam")
-CreateToggle("Wall Check", "WallCheck") -- [NEW] Toggle
+CreateToggle("Wall Check (Ghost)", "WallCheck") -- [NEW] Ghost Toggle
 
 VisLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() VisPage.CanvasSize = UDim2.fromOffset(0, VisLayout.AbsoluteContentSize.Y + 10) end)
 
@@ -367,26 +367,41 @@ RunService.RenderStepped:Connect(function()
 				local col = isRainbowTarget(p.Name) and GetRainbow() or p.TeamColor.Color
 				local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
 				
-				-- [NEW] WallCheck Logic
+				-- [NEW] Ghost Mode Calculation
 				local isVisible = true
 				if ESP_SETTINGS.WallCheck then
 					RayParams.FilterDescendantsInstances = {LocalPlayer.Character, p.Character, Camera}
 					local result = workspace:Raycast(Camera.CFrame.Position, hrp.Position - Camera.CFrame.Position, RayParams)
-					if result then isVisible = false end -- Hit a wall
+					if result then isVisible = false end -- Hit wall
 				end
 
-				-- Combine onScreen check with WallCheck
-				if onScreen and isVisible then
+				local alpha = 1
+				if ESP_SETTINGS.WallCheck and not isVisible then
+					alpha = 0.35 -- Ghost Opacity (Lower = Fainter)
+				end
+
+				-- Only Draw if on screen
+				if onScreen then
 					local dist = (Camera.CFrame.Position - hrp.Position).Magnitude
 					local size = math.clamp(2000/pos.Z, 25, 300)
 					local w, h = size, size*1.5
 					
-					-- [[ UPDATE CHAMS ]]
+					-- [[ UPDATE CHAMS (Highlight) ]]
 					local cham = p.Character:FindFirstChild("KopiHighlight")
 					if cham then
 						cham.Enabled = ESP_SETTINGS.Chams
 						cham.FillColor = col
-						cham.DepthMode = isVisible and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
+						if ESP_SETTINGS.WallCheck and not isVisible then
+							-- Ghost Chams settings
+							cham.FillTransparency = 0.85
+							cham.OutlineTransparency = 1
+							cham.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+						else
+							-- Normal settings
+							cham.FillTransparency = 0.6
+							cham.OutlineTransparency = 0.2
+							cham.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+						end
 					end
 					
 					esp.BoxOutline.Visible = ESP_SETTINGS.Box
@@ -395,8 +410,10 @@ RunService.RenderStepped:Connect(function()
 						esp.Box.Size = Vector2.new(w, h)
 						esp.Box.Position = Vector2.new(pos.X - w/2, pos.Y - h/2)
 						esp.Box.Color = col
+						esp.Box.Transparency = alpha
 						esp.BoxOutline.Size = Vector2.new(w, h)
 						esp.BoxOutline.Position = esp.Box.Position
+						esp.BoxOutline.Transparency = 0.5 * alpha
 					end
 					
 					esp.Tracer.Visible = ESP_SETTINGS.Tracers
@@ -404,6 +421,7 @@ RunService.RenderStepped:Connect(function()
 						esp.Tracer.From = Vector2.new(center.X, vp.Y)
 						esp.Tracer.To = Vector2.new(pos.X, pos.Y + h/2)
 						esp.Tracer.Color = col
+						esp.Tracer.Transparency = alpha
 					end
 					
 					esp.Name.Visible = ESP_SETTINGS.Names
@@ -411,6 +429,7 @@ RunService.RenderStepped:Connect(function()
 						esp.Name.Text = p.Name
 						esp.Name.Position = Vector2.new(pos.X, pos.Y - h/2 - 16)
 						esp.Name.Color = col
+						esp.Name.Transparency = alpha
 					end
 					
 					esp.Info.Visible = (ESP_SETTINGS.Distance or ESP_SETTINGS.HealthBar)
@@ -420,7 +439,8 @@ RunService.RenderStepped:Connect(function()
 						if ESP_SETTINGS.HealthBar then txt = txt.."["..math.floor(hum.Health).."]" end
 						esp.Info.Text = txt
 						esp.Info.Position = Vector2.new(pos.X, pos.Y + h/2 + 2)
-						esp.Info.Color = col 
+						esp.Info.Color = col
+						esp.Info.Transparency = alpha
 					end
 					
 					esp.Bar.Visible = ESP_SETTINGS.HealthBar
@@ -433,9 +453,11 @@ RunService.RenderStepped:Connect(function()
 						local barH = h * hp
 						esp.BarOutline.From = Vector2.new(barX, barTop)
 						esp.BarOutline.To = Vector2.new(barX, barBot)
+						esp.BarOutline.Transparency = alpha
 						esp.Bar.Color = Color3.fromHSV(hp * 0.3, 1, 1)
 						esp.Bar.From = Vector2.new(barX, barBot)
 						esp.Bar.To = Vector2.new(barX, barBot - barH)
+						esp.Bar.Transparency = alpha
 					end
 					
 					local doSkel = ESP_SETTINGS.Skeleton
@@ -449,6 +471,7 @@ RunService.RenderStepped:Connect(function()
 							if hon then
 								esp.Head.Visible = true; esp.Head.Position = Vector2.new(hp.X, hp.Y)
 								esp.Head.Radius = math.clamp(400/pos.Z, 4, 15); esp.Head.Color = col
+								esp.Head.Transparency = alpha
 							end
 						end
 						local links = (hum.RigType == Enum.HumanoidRigType.R15) and R15_LINKS or R6_LINKS
@@ -461,14 +484,15 @@ RunService.RenderStepped:Connect(function()
 									local s1, o1 = Camera:WorldToViewportPoint(p1.Position)
 									local s2, o2 = Camera:WorldToViewportPoint(p2.Position)
 									if o1 and o2 then
-										l.Visible = true; l.From = Vector2.new(s1.X, s1.Y); l.To = Vector2.new(s2.X, s2.Y); l.Color = col
+										l.Visible = true; l.From = Vector2.new(s1.X, s1.Y); l.To = Vector2.new(s2.X, s2.Y);
+										l.Color = col; l.Transparency = alpha
 									end
 								end
 							end
 						end
 					end
 				else
-					-- Hide everything if Off Screen OR Behind Wall (when WallCheck is on)
+					-- Off-Screen logic (Just hide, don't destroy)
 					local cham = p.Character:FindFirstChild("KopiHighlight")
 					if cham then cham.Enabled = false end
 					
